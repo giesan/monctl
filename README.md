@@ -55,3 +55,12 @@ the Linux system volume. Some monitors do not support these controls.
 or `ddcutil`. If multiple laptop backlight devices are found, the command
 reports the ambiguity instead of picking one. A graphical interface is planned
 for later.
+
+## Build an Arch/Manjaro package
+
+With GoReleaser v2 installed, run `goreleaser release --snapshot --clean`.
+The resulting Arch Linux packages for x86-64 and ARM64 are placed in `dist/`.
+The package installs `monctl` to `/usr/bin` and depends on `ddcutil` and
+`systemd` (`busctl`). After installing the package, run `monctl setup` as your
+normal user to configure the I2C module and check monitor access. Snapshot
+packages are for local testing; no publishing or Git tag is required.

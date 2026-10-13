@@ -1,0 +1,31 @@
+version: 2
+project_name: monctl
+
+release:
+  disable: true
+
+builds:
+  - id: monctl
+    main: ./cmd/monctl
+    binary: monctl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+nfpms:
+  - id: archlinux
+    package_name: monctl
+    builds:
+      - monctl
+    formats:
+      - archlinux
+    maintainer: monctl contributors
+    description: Control external monitor settings and laptop brightness on Linux
+    bindir: /usr/bin
+    dependencies:
+      - ddcutil
+      - systemd
