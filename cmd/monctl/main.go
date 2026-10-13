@@ -7,12 +7,13 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/giesan/monitorcontrol/internal/backlight"
 	"github.com/giesan/monitorcontrol/internal/ddc"
 	"github.com/giesan/monitorcontrol/internal/monitor"
 	"github.com/giesan/monitorcontrol/internal/setup"
 )
 
-const usage = "Usage: monctl setup | list | get [bus] | set [bus] <percent> | contrast|volume get [bus] | contrast|volume set [bus] <percent>"
+const usage = "Usage: monctl setup | list | get [bus] | set [bus] <percent> | contrast|volume get [bus] | contrast|volume set [bus] <percent> | laptop get | laptop set <percent>"
 
 func main() {
 	configuration, err := setup.New()
@@ -20,7 +21,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "monctl:", err)
 		os.Exit(1)
 	}
-	os.Exit(run(context.Background(), os.Args[1:], monitor.Service{Backend: ddc.New()}, configuration, os.Stdout, os.Stderr))
+	os.Exit(run(context.Background(), os.Args[1:], monitor.Service{Backend: ddc.New()}, configuration, backlight.New(), os.Stdout, os.Stderr))
 }
 
 type setupCommand interface {
@@ -28,7 +29,12 @@ type setupCommand interface {
 	Apply(context.Context) error
 }
 
-func run(ctx context.Context, args []string, service monitor.Service, configuration setupCommand, stdout, stderr io.Writer) int {
+type laptopControl interface {
+	Get(context.Context) (int, error)
+	Set(context.Context, int) error
+}
+
+func run(ctx context.Context, args []string, service monitor.Service, configuration setupCommand, laptop laptopControl, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -72,6 +78,8 @@ func run(ctx context.Context, args []string, service monitor.Service, configurat
 			feature = monitor.Volume
 		}
 		return runControl(ctx, args[1:], feature, service, stdout, stderr)
+	case "laptop":
+		return runLaptop(ctx, args[1:], laptop, stdout, stderr)
 	default:
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -81,6 +89,33 @@ func run(ctx context.Context, args []string, service monitor.Service, configurat
 		return 1
 	}
 	return 0
+}
+
+func runLaptop(ctx context.Context, args []string, laptop laptopControl, stdout, stderr io.Writer) int {
+	if len(args) == 1 && args[0] == "get" {
+		value, err := laptop.Get(ctx)
+		if err != nil {
+			fmt.Fprintln(stderr, "monctl:", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "%d%%\n", value)
+		return 0
+	}
+	if len(args) == 2 && args[0] == "set" {
+		percent, err := strconv.Atoi(args[1])
+		if err != nil || percent < 0 || percent > 100 {
+			fmt.Fprintln(stderr, "laptop brightness must be an integer from 0 to 100")
+			return 2
+		}
+		if err = laptop.Set(ctx, percent); err != nil {
+			fmt.Fprintln(stderr, "monctl:", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Requested %d%% laptop brightness.\n", percent)
+		return 0
+	}
+	fmt.Fprintln(stderr, usage)
+	return 2
 }
 
 func runControl(ctx context.Context, args []string, feature monitor.Feature, service monitor.Service, stdout, stderr io.Writer) int {

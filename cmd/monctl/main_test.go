@@ -19,6 +19,14 @@ type backend struct {
 
 type fakeSetup struct{ applied bool }
 
+type fakeLaptop struct{ set int }
+
+func (*fakeLaptop) Get(context.Context) (int, error) { return 75, nil }
+func (f *fakeLaptop) Set(_ context.Context, percent int) error {
+	f.set = percent
+	return nil
+}
+
 func (f *fakeSetup) Run(_ context.Context, out, _ io.Writer) error {
 	fmt.Fprintln(out, "i2c-dev setup complete.")
 	return nil
@@ -67,7 +75,7 @@ func TestCommandsAndInvalidArguments(t *testing.T) {
 		{[]string{"list", "extra"}, 2, ""},
 	} {
 		var out, errs bytes.Buffer
-		code := run(context.Background(), tc.args, monitor.Service{Backend: b}, nil, &out, &errs)
+		code := run(context.Background(), tc.args, monitor.Service{Backend: b}, nil, nil, &out, &errs)
 		if code != tc.code || !strings.Contains(out.String(), tc.output) {
 			t.Errorf("args %v: exit=%d stdout=%q stderr=%q", tc.args, code, out.String(), errs.String())
 		}
@@ -80,11 +88,11 @@ func TestCommandsAndInvalidArguments(t *testing.T) {
 func TestImplicitMonitorFailsForMultipleDisplays(t *testing.T) {
 	b := &backend{displays: []monitor.Display{{Bus: 5, Model: "A"}, {Bus: 6, Model: "B"}}}
 	var out, errs bytes.Buffer
-	code := run(context.Background(), []string{"set", "50"}, monitor.Service{Backend: b}, nil, &out, &errs)
+	code := run(context.Background(), []string{"set", "50"}, monitor.Service{Backend: b}, nil, nil, &out, &errs)
 	if code != 1 || b.write != 0 || !strings.Contains(errs.String(), "buses 5, 6") {
 		t.Fatalf("exit=%d write=%d stdout=%q stderr=%q", code, b.write, out.String(), errs.String())
 	}
-	code = run(context.Background(), []string{"get"}, monitor.Service{Backend: b}, nil, &out, &errs)
+	code = run(context.Background(), []string{"get"}, monitor.Service{Backend: b}, nil, nil, &out, &errs)
 	if code != 1 {
 		t.Fatalf("ambiguous get: exit=%d", code)
 	}
@@ -94,13 +102,36 @@ func TestSetupAndPrivilegedHelper(t *testing.T) {
 	b := &backend{}
 	s := &fakeSetup{}
 	var out, errs bytes.Buffer
-	if code := run(context.Background(), []string{"setup"}, monitor.Service{Backend: b}, s, &out, &errs); code != 0 || !strings.Contains(out.String(), "1 brightness-capable monitor") {
+	if code := run(context.Background(), []string{"setup"}, monitor.Service{Backend: b}, s, nil, &out, &errs); code != 0 || !strings.Contains(out.String(), "1 brightness-capable monitor") {
 		t.Fatalf("setup: exit=%d output=%q error=%q", code, out.String(), errs.String())
 	}
-	if code := run(context.Background(), []string{"setup", "--apply"}, monitor.Service{Backend: b}, s, &out, &errs); code != 0 || !s.applied {
+	if code := run(context.Background(), []string{"setup", "--apply"}, monitor.Service{Backend: b}, s, nil, &out, &errs); code != 0 || !s.applied {
 		t.Fatalf("apply: exit=%d applied=%t error=%q", code, s.applied, errs.String())
 	}
-	if code := run(context.Background(), []string{"setup", "bad"}, monitor.Service{Backend: b}, s, &out, &errs); code != 2 {
+	if code := run(context.Background(), []string{"setup", "bad"}, monitor.Service{Backend: b}, s, nil, &out, &errs); code != 2 {
 		t.Fatalf("bad args: exit=%d", code)
+	}
+}
+
+func TestLaptopCommands(t *testing.T) {
+	laptop := &fakeLaptop{}
+	for _, tc := range []struct {
+		args []string
+		code int
+		want string
+	}{
+		{[]string{"laptop", "get"}, 0, "75%"},
+		{[]string{"laptop", "set", "40"}, 0, "Requested 40%"},
+		{[]string{"laptop", "set", "101"}, 2, ""},
+		{[]string{"laptop", "set"}, 2, ""},
+	} {
+		var out, errs bytes.Buffer
+		code := run(context.Background(), tc.args, monitor.Service{}, nil, laptop, &out, &errs)
+		if code != tc.code || !strings.Contains(out.String(), tc.want) {
+			t.Errorf("args=%v code=%d out=%q err=%q", tc.args, code, out.String(), errs.String())
+		}
+	}
+	if laptop.set != 40 {
+		t.Fatalf("set value = %d", laptop.set)
 	}
 }
