@@ -12,7 +12,8 @@ import (
 )
 
 type backend struct {
-	write int
+	write    int
+	displays []monitor.Display
 }
 
 type fakeSetup struct{ applied bool }
@@ -27,6 +28,9 @@ func (f *fakeSetup) Apply(context.Context) error {
 }
 
 func (b *backend) Detect(context.Context) ([]monitor.Display, error) {
+	if b.displays != nil {
+		return b.displays, nil
+	}
 	return []monitor.Display{{Bus: 5, Model: "Example"}}, nil
 }
 func (b *backend) Read(context.Context, int) (monitor.Brightness, error) {
@@ -46,8 +50,11 @@ func TestCommandsAndInvalidArguments(t *testing.T) {
 	}{
 		{[]string{"list"}, 0, "5\tExample"},
 		{[]string{"get", "5"}, 0, "50%"},
+		{[]string{"get"}, 0, "50%"},
 		{[]string{"set", "5", "40"}, 0, "Requested 40%"},
+		{[]string{"set", "40"}, 0, "Requested 40%"},
 		{[]string{"set", "5", "101"}, 2, ""},
+		{[]string{"set", "101"}, 2, ""},
 		{[]string{"get", "x"}, 2, ""},
 		{[]string{"list", "extra"}, 2, ""},
 	} {
@@ -59,6 +66,19 @@ func TestCommandsAndInvalidArguments(t *testing.T) {
 	}
 	if b.write != 20 {
 		t.Fatalf("write = %d, want 20", b.write)
+	}
+}
+
+func TestImplicitMonitorFailsForMultipleDisplays(t *testing.T) {
+	b := &backend{displays: []monitor.Display{{Bus: 5, Model: "A"}, {Bus: 6, Model: "B"}}}
+	var out, errs bytes.Buffer
+	code := run(context.Background(), []string{"set", "50"}, monitor.Service{Backend: b}, nil, &out, &errs)
+	if code != 1 || b.write != 0 || !strings.Contains(errs.String(), "buses 5, 6") {
+		t.Fatalf("exit=%d write=%d stdout=%q stderr=%q", code, b.write, out.String(), errs.String())
+	}
+	code = run(context.Background(), []string{"get"}, monitor.Service{Backend: b}, nil, &out, &errs)
+	if code != 1 {
+		t.Fatalf("ambiguous get: exit=%d", code)
 	}
 }
 

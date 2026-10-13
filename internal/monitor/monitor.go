@@ -4,6 +4,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 type Display struct {
@@ -44,6 +45,26 @@ func (s Service) List(ctx context.Context) ([]Display, error) {
 		supported = append(supported, display)
 	}
 	return supported, nil
+}
+
+// Single selects a brightness-capable monitor only when the choice is unambiguous.
+func (s Service) Single(ctx context.Context) (Display, error) {
+	displays, err := s.List(ctx)
+	if err != nil {
+		return Display{}, err
+	}
+	switch len(displays) {
+	case 0:
+		return Display{}, fmt.Errorf("no DDC/CI brightness-capable monitors found; run monctl list")
+	case 1:
+		return displays[0], nil
+	default:
+		buses := make([]string, 0, len(displays))
+		for _, display := range displays {
+			buses = append(buses, fmt.Sprint(display.Bus))
+		}
+		return Display{}, fmt.Errorf("multiple monitors found (buses %s); specify a bus from monctl list", strings.Join(buses, ", "))
+	}
 }
 
 func (s Service) Get(ctx context.Context, bus int) (int, error) {

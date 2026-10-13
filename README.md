@@ -25,13 +25,16 @@ denied, follow the ddcutil guide linked above. Repeating setup is safe.
 ```sh
 go run ./cmd/monctl setup
 go run ./cmd/monctl list
+go run ./cmd/monctl get
+go run ./cmd/monctl set 50
 go run ./cmd/monctl get 7
 go run ./cmd/monctl set 7 50
 ```
 
 For a standalone executable, run `go build -o monctl ./cmd/monctl` and use
-`./monctl list`, `./monctl get <bus>`, and `./monctl set <bus> <percent>`.
-Replace `7` with a bus number returned by `list`. Bus numbers can change after
+`./monctl list`, `./monctl get [bus]`, and `./monctl set [bus] <percent>`.
+With exactly one brightness-capable external monitor, the bus number is optional.
+With multiple monitors, specify a bus number returned by `list`. Bus numbers can change after
 reconnecting displays or rebooting. `set` accepts whole percentages from 0 to
 100; the actual monitor brightness may be rounded or limited by the hardware.
 

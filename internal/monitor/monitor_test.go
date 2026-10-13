@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -52,5 +53,21 @@ func TestListSkipsUnsupported(t *testing.T) {
 	f.errors[8] = errors.New("permission denied")
 	if _, err := (Service{Backend: f}).List(context.Background()); err == nil {
 		t.Fatal("permission error was hidden")
+	}
+}
+
+func TestSingleSelectsOnlyUnambiguousDisplay(t *testing.T) {
+	f := &fakeBackend{values: map[int]Brightness{7: {Current: 10, Maximum: 100}, 8: {Current: 20, Maximum: 100}}}
+	s := Service{Backend: f}
+	if _, err := s.Single(context.Background()); err == nil || !strings.Contains(err.Error(), "no DDC/CI") {
+		t.Fatalf("no displays: err=%v", err)
+	}
+	f.displays = []Display{{Bus: 7, Model: "A"}}
+	if got, err := s.Single(context.Background()); err != nil || got.Bus != 7 {
+		t.Fatalf("one display: got=%v err=%v", got, err)
+	}
+	f.displays = append(f.displays, Display{Bus: 8, Model: "B"})
+	if _, err := s.Single(context.Background()); err == nil || !strings.Contains(err.Error(), "buses 7, 8") {
+		t.Fatalf("multiple displays: err=%v", err)
 	}
 }
