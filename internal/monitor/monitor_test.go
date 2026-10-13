@@ -9,22 +9,24 @@ import (
 
 type fakeBackend struct {
 	displays []Display
-	values   map[int]Brightness
+	values   map[int]Level
 	errors   map[int]error
 	written  int
+	feature  Feature
 }
 
 func (f *fakeBackend) Detect(context.Context) ([]Display, error) { return f.displays, nil }
-func (f *fakeBackend) Read(_ context.Context, bus int) (Brightness, error) {
+func (f *fakeBackend) Read(_ context.Context, bus int, _ Feature) (Level, error) {
 	return f.values[bus], f.errors[bus]
 }
-func (f *fakeBackend) Write(_ context.Context, _ int, value int) error {
+func (f *fakeBackend) Write(_ context.Context, _ int, feature Feature, value int) error {
 	f.written = value
+	f.feature = feature
 	return nil
 }
 
 func TestGetSetNonStandardMaximum(t *testing.T) {
-	f := &fakeBackend{values: map[int]Brightness{7: {Current: 30, Maximum: 80}}}
+	f := &fakeBackend{values: map[int]Level{7: {Current: 30, Maximum: 80}}}
 	s := Service{Backend: f}
 	got, err := s.Get(context.Background(), 7)
 	if err != nil || got != 38 {
@@ -43,7 +45,7 @@ func TestGetSetNonStandardMaximum(t *testing.T) {
 func TestListSkipsUnsupported(t *testing.T) {
 	f := &fakeBackend{
 		displays: []Display{{Bus: 7, Model: "A"}, {Bus: 8, Model: "B"}},
-		values:   map[int]Brightness{7: {Current: 10, Maximum: 100}},
+		values:   map[int]Level{7: {Current: 10, Maximum: 100}},
 		errors:   map[int]error{8: ErrUnsupported},
 	}
 	got, err := (Service{Backend: f}).List(context.Background())
@@ -57,7 +59,7 @@ func TestListSkipsUnsupported(t *testing.T) {
 }
 
 func TestSingleSelectsOnlyUnambiguousDisplay(t *testing.T) {
-	f := &fakeBackend{values: map[int]Brightness{7: {Current: 10, Maximum: 100}, 8: {Current: 20, Maximum: 100}}}
+	f := &fakeBackend{values: map[int]Level{7: {Current: 10, Maximum: 100}, 8: {Current: 20, Maximum: 100}}}
 	s := Service{Backend: f}
 	if _, err := s.Single(context.Background()); err == nil || !strings.Contains(err.Error(), "no DDC/CI") {
 		t.Fatalf("no displays: err=%v", err)
@@ -69,5 +71,17 @@ func TestSingleSelectsOnlyUnambiguousDisplay(t *testing.T) {
 	f.displays = append(f.displays, Display{Bus: 8, Model: "B"})
 	if _, err := s.Single(context.Background()); err == nil || !strings.Contains(err.Error(), "buses 7, 8") {
 		t.Fatalf("multiple displays: err=%v", err)
+	}
+}
+
+func TestFeatureConversionAndWrite(t *testing.T) {
+	f := &fakeBackend{values: map[int]Level{7: {Current: 25, Maximum: 80}}}
+	s := Service{Backend: f}
+	got, err := s.GetFeature(context.Background(), 7, Contrast)
+	if err != nil || got != 31 {
+		t.Fatalf("contrast=%d err=%v", got, err)
+	}
+	if err := s.SetFeature(context.Background(), 7, Volume, 50); err != nil || f.written != 40 || f.feature != Volume {
+		t.Fatalf("volume write=%d feature=%v err=%v", f.written, f.feature, err)
 	}
 }

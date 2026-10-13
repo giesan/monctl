@@ -1,6 +1,7 @@
 # monctl
 
-A small Go CLI for controlling external monitor brightness on Linux via DDC/CI.
+A small Go CLI for controlling external monitor brightness, contrast, and
+monitor speaker volume on Linux via DDC/CI.
 The hardware controls work independently of Cinnamon, GNOME, KDE, X11, and Wayland.
 
 ## Requirements
@@ -29,6 +30,10 @@ go run ./cmd/monctl get
 go run ./cmd/monctl set 50
 go run ./cmd/monctl get 7
 go run ./cmd/monctl set 7 50
+go run ./cmd/monctl contrast get
+go run ./cmd/monctl contrast set 45
+go run ./cmd/monctl volume get
+go run ./cmd/monctl volume set 30
 ```
 
 For a standalone executable, run `go build -o monctl ./cmd/monctl` and use
@@ -37,6 +42,10 @@ With exactly one brightness-capable external monitor, the bus number is optional
 With multiple monitors, specify a bus number returned by `list`. Bus numbers can change after
 reconnecting displays or rebooting. `set` accepts whole percentages from 0 to
 100; the actual monitor brightness may be rounded or limited by the hardware.
+Use `contrast get [bus]`, `contrast set [bus] <percent>`, `volume get [bus]`,
+and `volume set [bus] <percent>` for the other controls. The optional bus
+selection works the same way, but only monitors supporting the chosen control
+are considered. `volume` adjusts the monitor's DDC/CI speaker volume, **not**
+the Linux system volume. Some monitors do not support these controls.
 
-This first version supports external monitor brightness only. Laptop backlights,
-contrast, volume, and graphical controls are planned for later.
+Laptop backlights and graphical controls are planned for later.

@@ -14,6 +14,7 @@ import (
 type backend struct {
 	write    int
 	displays []monitor.Display
+	feature  monitor.Feature
 }
 
 type fakeSetup struct{ applied bool }
@@ -33,11 +34,12 @@ func (b *backend) Detect(context.Context) ([]monitor.Display, error) {
 	}
 	return []monitor.Display{{Bus: 5, Model: "Example"}}, nil
 }
-func (b *backend) Read(context.Context, int) (monitor.Brightness, error) {
-	return monitor.Brightness{Current: 25, Maximum: 50}, nil
+func (b *backend) Read(context.Context, int, monitor.Feature) (monitor.Level, error) {
+	return monitor.Level{Current: 25, Maximum: 50}, nil
 }
-func (b *backend) Write(_ context.Context, _ int, value int) error {
+func (b *backend) Write(_ context.Context, _ int, feature monitor.Feature, value int) error {
 	b.write = value
+	b.feature = feature
 	return nil
 }
 
@@ -53,7 +55,13 @@ func TestCommandsAndInvalidArguments(t *testing.T) {
 		{[]string{"get"}, 0, "50%"},
 		{[]string{"set", "5", "40"}, 0, "Requested 40%"},
 		{[]string{"set", "40"}, 0, "Requested 40%"},
+		{[]string{"contrast", "get"}, 0, "50%"},
+		{[]string{"contrast", "set", "40"}, 0, "Requested 40% contrast"},
+		{[]string{"volume", "get", "5"}, 0, "50%"},
+		{[]string{"volume", "set", "5", "40"}, 0, "Requested 40% monitor volume"},
 		{[]string{"set", "5", "101"}, 2, ""},
+		{[]string{"volume", "set", "101"}, 2, ""},
+		{[]string{"volume", "oops"}, 2, ""},
 		{[]string{"set", "101"}, 2, ""},
 		{[]string{"get", "x"}, 2, ""},
 		{[]string{"list", "extra"}, 2, ""},
@@ -64,8 +72,8 @@ func TestCommandsAndInvalidArguments(t *testing.T) {
 			t.Errorf("args %v: exit=%d stdout=%q stderr=%q", tc.args, code, out.String(), errs.String())
 		}
 	}
-	if b.write != 20 {
-		t.Fatalf("write = %d, want 20", b.write)
+	if b.write != 20 || b.feature != monitor.Volume {
+		t.Fatalf("write = %d, feature = %s; want volume 20", b.write, b.feature)
 	}
 }
 

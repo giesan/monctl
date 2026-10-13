@@ -41,8 +41,8 @@ func TestDetectBriefAndReadTerse(t *testing.T) {
 	if !reflect.DeepEqual(displays, want) {
 		t.Fatalf("displays = %#v, want %#v", displays, want)
 	}
-	brightness, err := b.Read(context.Background(), 12)
-	if err != nil || brightness != (monitor.Brightness{Current: 30, Maximum: 80}) {
+	brightness, err := b.Read(context.Background(), 12, monitor.Brightness)
+	if err != nil || brightness != (monitor.Level{Current: 30, Maximum: 80}) {
 		t.Fatalf("brightness = %+v, err = %v", brightness, err)
 	}
 	if !reflect.DeepEqual(f.commands[1], []string{"getvcp", "10", "--bus", "12", "--terse"}) {
@@ -52,7 +52,7 @@ func TestDetectBriefAndReadTerse(t *testing.T) {
 
 func TestReadUnsupported(t *testing.T) {
 	f := &fakeRunner{responses: []response{{out: "VCP 10 ERR\n"}}}
-	_, err := (&Backend{run: f}).Read(context.Background(), 7)
+	_, err := (&Backend{run: f}).Read(context.Background(), 7, monitor.Brightness)
 	if !errors.Is(err, monitor.ErrUnsupported) {
 		t.Fatalf("read error = %v", err)
 	}
@@ -60,7 +60,7 @@ func TestReadUnsupported(t *testing.T) {
 
 func TestPermissionError(t *testing.T) {
 	f := &fakeRunner{responses: []response{{out: "Permission denied: /dev/i2c-7", err: errors.New("exit status 1")}}}
-	_, err := (&Backend{run: f}).Read(context.Background(), 7)
+	_, err := (&Backend{run: f}).Read(context.Background(), 7, monitor.Brightness)
 	if err == nil || !strings.Contains(err.Error(), "permissions") {
 		t.Fatalf("read error = %v", err)
 	}
@@ -76,8 +76,34 @@ func TestMissingI2CDevices(t *testing.T) {
 
 func TestMalformedReadIsError(t *testing.T) {
 	f := &fakeRunner{responses: []response{{out: "something unexpected"}}}
-	_, err := (&Backend{run: f}).Read(context.Background(), 7)
+	_, err := (&Backend{run: f}).Read(context.Background(), 7, monitor.Brightness)
 	if err == nil {
 		t.Fatal("expected malformed response error")
+	}
+}
+
+func TestReadVolumeCNCAndWrite(t *testing.T) {
+	f := &fakeRunner{responses: []response{{out: "VCP 62 CNC x00 x64 x00 x32\n"}, {}}}
+	b := &Backend{run: f}
+	level, err := b.Read(context.Background(), 7, monitor.Volume)
+	if err != nil || level != (monitor.Level{Current: 50, Maximum: 100}) {
+		t.Fatalf("volume = %+v, err = %v", level, err)
+	}
+	if err := b.Write(context.Background(), 7, monitor.Volume, 75); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(f.commands[1], []string{"setvcp", "62", "75", "--bus", "7"}) {
+		t.Fatalf("write command = %v", f.commands[1])
+	}
+}
+
+func TestContrastAndUnsupportedFeature(t *testing.T) {
+	f := &fakeRunner{responses: []response{{out: "VCP 12 C 50 100\n"}, {out: "VCP 62 ERR\n"}}}
+	b := &Backend{run: f}
+	if value, err := b.Read(context.Background(), 7, monitor.Contrast); err != nil || value.Current != 50 {
+		t.Fatalf("contrast = %v, err = %v", value, err)
+	}
+	if _, err := b.Read(context.Background(), 7, monitor.Volume); !errors.Is(err, monitor.ErrUnsupported) {
+		t.Fatalf("unsupported volume error = %v", err)
 	}
 }

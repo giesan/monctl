@@ -12,7 +12,7 @@ import (
 	"github.com/giesan/monitorcontrol/internal/setup"
 )
 
-const usage = "Usage: monctl setup | list | get [bus] | set [bus] <percent>"
+const usage = "Usage: monctl setup | list | get [bus] | set [bus] <percent> | contrast|volume get [bus] | contrast|volume set [bus] <percent>"
 
 func main() {
 	configuration, err := setup.New()
@@ -34,9 +34,7 @@ func run(ctx context.Context, args []string, service monitor.Service, configurat
 		return 2
 	}
 	if (args[0] == "setup" && len(args) != 1 && !(len(args) == 2 && args[1] == "--apply")) ||
-		(args[0] == "list" && len(args) != 1) ||
-		(args[0] == "get" && len(args) > 2) ||
-		(args[0] == "set" && (len(args) < 2 || len(args) > 3)) {
+		(args[0] == "list" && len(args) != 1) {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
@@ -67,47 +65,13 @@ func run(ctx context.Context, args []string, service monitor.Service, configurat
 			}
 		}
 	case "get", "set":
-		var bus int
-		explicitBus := (args[0] == "get" && len(args) == 2) || (args[0] == "set" && len(args) == 3)
-		if explicitBus {
-			var parseErr error
-			bus, parseErr = strconv.Atoi(args[1])
-			if parseErr != nil || bus < 0 {
-				fmt.Fprintln(stderr, "bus must be a non-negative number")
-				fmt.Fprintln(stderr, usage)
-				return 2
-			}
+		return runControl(ctx, args, monitor.Brightness, service, stdout, stderr)
+	case "contrast", "volume":
+		feature := monitor.Contrast
+		if args[0] == "volume" {
+			feature = monitor.Volume
 		}
-		var percent int
-		if args[0] == "set" {
-			value := args[len(args)-1]
-			var parseErr error
-			percent, parseErr = strconv.Atoi(value)
-			if parseErr != nil || percent < 0 || percent > 100 {
-				fmt.Fprintln(stderr, "brightness must be an integer from 0 to 100")
-				fmt.Fprintln(stderr, usage)
-				return 2
-			}
-		}
-		if !explicitBus {
-			var display monitor.Display
-			display, err = service.Single(ctx)
-			if err != nil {
-				break
-			}
-			bus = display.Bus
-		}
-		if args[0] == "get" {
-			percent, err = service.Get(ctx, bus)
-			if err == nil {
-				fmt.Fprintf(stdout, "%d%%\n", percent)
-			}
-		} else {
-			err = service.Set(ctx, bus, percent)
-			if err == nil {
-				fmt.Fprintf(stdout, "Requested %d%% brightness on bus %d.\n", percent, bus)
-			}
-		}
+		return runControl(ctx, args[1:], feature, service, stdout, stderr)
 	default:
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -116,5 +80,59 @@ func run(ctx context.Context, args []string, service monitor.Service, configurat
 		fmt.Fprintln(stderr, "monctl:", err)
 		return 1
 	}
+	return 0
+}
+
+func runControl(ctx context.Context, args []string, feature monitor.Feature, service monitor.Service, stdout, stderr io.Writer) int {
+	if len(args) == 0 ||
+		(args[0] == "get" && len(args) > 2) ||
+		(args[0] == "set" && (len(args) < 2 || len(args) > 3)) ||
+		(args[0] != "get" && args[0] != "set") {
+		fmt.Fprintln(stderr, usage)
+		return 2
+	}
+	var bus int
+	explicitBus := (args[0] == "get" && len(args) == 2) || (args[0] == "set" && len(args) == 3)
+	if explicitBus {
+		var err error
+		bus, err = strconv.Atoi(args[1])
+		if err != nil || bus < 0 {
+			fmt.Fprintln(stderr, "bus must be a non-negative number")
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+	}
+	var percent int
+	if args[0] == "set" {
+		var err error
+		percent, err = strconv.Atoi(args[len(args)-1])
+		if err != nil || percent < 0 || percent > 100 {
+			fmt.Fprintln(stderr, feature, "must be an integer from 0 to 100")
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+	}
+	if !explicitBus {
+		display, err := service.SingleFeature(ctx, feature)
+		if err != nil {
+			fmt.Fprintln(stderr, "monctl:", err)
+			return 1
+		}
+		bus = display.Bus
+	}
+	if args[0] == "get" {
+		value, err := service.GetFeature(ctx, bus, feature)
+		if err != nil {
+			fmt.Fprintln(stderr, "monctl:", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "%d%%\n", value)
+		return 0
+	}
+	if err := service.SetFeature(ctx, bus, feature, percent); err != nil {
+		fmt.Fprintln(stderr, "monctl:", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "Requested %d%% %s on bus %d.\n", percent, feature, bus)
 	return 0
 }

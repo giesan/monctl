@@ -57,7 +57,7 @@ func (b *Backend) command(ctx context.Context, args ...string) (string, error) {
 		return "", fmt.Errorf("no /dev/i2c-* devices found; load the i2c-dev kernel module (sudo modprobe i2c-dev) and check your graphics driver: %w", err)
 	case strings.Contains(low, "permission denied"), strings.Contains(low, "eacces"):
 		return "", fmt.Errorf("cannot access /dev/i2c-*; check I2C device permissions: %s: %w", message, err)
-	case strings.Contains(low, "unsupported"), strings.Contains(low, "not supported"), strings.Contains(low, "vcp 10 err"):
+	case strings.Contains(low, "unsupported"), strings.Contains(low, "not supported"), vcpError.MatchString(low):
 		return "", fmt.Errorf("%w: %s", monitor.ErrUnsupported, message)
 	case strings.Contains(low, "no displays found"), strings.Contains(low, "no monitor"), strings.Contains(low, "not found"):
 		return "", fmt.Errorf("monitor not found; rerun monctl list and check that DDC/CI is enabled: %s: %w", message, err)
@@ -69,6 +69,7 @@ func (b *Backend) command(ctx context.Context, args ...string) (string, error) {
 var busLine = regexp.MustCompile(`(?m)^\s*I2C bus:\s*/dev/i2c-([0-9]+)\s*$`)
 var monitorLine = regexp.MustCompile(`(?m)^\s*Monitor:\s*[^:\r\n]*:([^:\r\n]+):[^\r\n]*$`)
 var displayHeader = regexp.MustCompile(`(?m)^Display [0-9]+\s*$`)
+var vcpError = regexp.MustCompile(`vcp [0-9a-f]{2} err`)
 
 func (b *Backend) Detect(ctx context.Context) ([]monitor.Display, error) {
 	out, err := b.command(ctx, "detect", "--brief")
@@ -100,35 +101,53 @@ func (b *Backend) Detect(ctx context.Context) ([]monitor.Display, error) {
 	return displays, nil
 }
 
-var vcpLine = regexp.MustCompile(`(?m)^VCP 10 C ([0-9]+) ([0-9]+)\s*$`)
-
-func (b *Backend) Read(ctx context.Context, bus int) (monitor.Brightness, error) {
-	out, err := b.command(ctx, "getvcp", "10", "--bus", strconv.Itoa(bus), "--terse")
-	if err != nil {
-		return monitor.Brightness{}, err
-	}
-	match := vcpLine.FindStringSubmatch(out)
-	if match == nil {
-		if strings.Contains(out, "VCP 10 ERR") {
-			return monitor.Brightness{}, monitor.ErrUnsupported
-		}
-		return monitor.Brightness{}, fmt.Errorf("unexpected ddcutil brightness response: %q", strings.TrimSpace(out))
-	}
-	current, err := strconv.Atoi(match[1])
-	if err != nil {
-		return monitor.Brightness{}, fmt.Errorf("invalid current brightness: %w", err)
-	}
-	maximum, err := strconv.Atoi(match[2])
-	if err != nil {
-		return monitor.Brightness{}, fmt.Errorf("invalid maximum brightness: %w", err)
-	}
-	if maximum <= 0 || current > maximum {
-		return monitor.Brightness{}, fmt.Errorf("monitor reported invalid brightness %d/%d", current, maximum)
-	}
-	return monitor.Brightness{Current: current, Maximum: maximum}, nil
+func featureCode(feature monitor.Feature) string {
+	return fmt.Sprintf("%02X", byte(feature))
 }
 
-func (b *Backend) Write(ctx context.Context, bus, value int) error {
-	_, err := b.command(ctx, "setvcp", "10", strconv.Itoa(value), "--bus", strconv.Itoa(bus))
+func (b *Backend) Read(ctx context.Context, bus int, feature monitor.Feature) (monitor.Level, error) {
+	code := featureCode(feature)
+	out, err := b.command(ctx, "getvcp", code, "--bus", strconv.Itoa(bus), "--terse")
+	if err != nil {
+		return monitor.Level{}, err
+	}
+	fields := strings.Fields(out)
+	if len(fields) >= 3 && strings.EqualFold(fields[0], "VCP") && strings.EqualFold(fields[1], code) && fields[2] == "ERR" {
+		return monitor.Level{}, fmt.Errorf("%w: %s", monitor.ErrUnsupported, feature)
+	}
+	if len(fields) < 5 || fields[0] != "VCP" || !strings.EqualFold(fields[1], code) {
+		return monitor.Level{}, fmt.Errorf("unexpected ddcutil %s response: %q", feature, strings.TrimSpace(out))
+	}
+	var current, maximum int
+	switch {
+	case len(fields) == 5 && fields[2] == "C":
+		current, err = strconv.Atoi(fields[3])
+		if err == nil {
+			maximum, err = strconv.Atoi(fields[4])
+		}
+	case len(fields) == 7 && fields[2] == "CNC" && feature == monitor.Volume:
+		var numbers [4]uint64
+		for i, value := range fields[3:] {
+			if !strings.HasPrefix(value, "x") {
+				return monitor.Level{}, fmt.Errorf("unexpected ddcutil %s response: %q", feature, strings.TrimSpace(out))
+			}
+			numbers[i], err = strconv.ParseUint(value[1:], 16, 8)
+			if err != nil {
+				break
+			}
+		}
+		maximum = int(numbers[0]<<8 | numbers[1])
+		current = int(numbers[2]<<8 | numbers[3])
+	default:
+		return monitor.Level{}, fmt.Errorf("unexpected ddcutil %s response: %q", feature, strings.TrimSpace(out))
+	}
+	if err != nil || current < 0 || maximum <= 0 || current > maximum {
+		return monitor.Level{}, fmt.Errorf("invalid %s value from monitor: %q", feature, strings.TrimSpace(out))
+	}
+	return monitor.Level{Current: current, Maximum: maximum}, nil
+}
+
+func (b *Backend) Write(ctx context.Context, bus int, feature monitor.Feature, value int) error {
+	_, err := b.command(ctx, "setvcp", featureCode(feature), strconv.Itoa(value), "--bus", strconv.Itoa(bus))
 	return err
 }
