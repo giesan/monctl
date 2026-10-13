@@ -16,7 +16,14 @@ denied, follow the ddcutil guide to configure persistent device permissions.
 
 ## Use
 
+Run `monctl setup` once after installation (or `go run ./cmd/monctl setup`
+from the source tree). It checks `i2c-dev`, asks for your sudo password only
+if it needs to load the module or configure it to load at boot, then checks
+for DDC/CI monitors. It does not change device permissions; if access is
+denied, follow the ddcutil guide linked above. Repeating setup is safe.
+
 ```sh
+go run ./cmd/monctl setup
 go run ./cmd/monctl list
 go run ./cmd/monctl get 7
 go run ./cmd/monctl set 7 50

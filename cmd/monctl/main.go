@@ -9,25 +9,50 @@ import (
 
 	"github.com/giesan/monitorcontrol/internal/ddc"
 	"github.com/giesan/monitorcontrol/internal/monitor"
+	"github.com/giesan/monitorcontrol/internal/setup"
 )
 
-const usage = "Usage: monctl list | get <bus> | set <bus> <percent>"
+const usage = "Usage: monctl setup | list | get <bus> | set <bus> <percent>"
 
 func main() {
-	os.Exit(run(context.Background(), os.Args[1:], monitor.Service{Backend: ddc.New()}, os.Stdout, os.Stderr))
+	configuration, err := setup.New()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "monctl:", err)
+		os.Exit(1)
+	}
+	os.Exit(run(context.Background(), os.Args[1:], monitor.Service{Backend: ddc.New()}, configuration, os.Stdout, os.Stderr))
 }
 
-func run(ctx context.Context, args []string, service monitor.Service, stdout, stderr io.Writer) int {
+type setupCommand interface {
+	Run(context.Context, io.Writer, io.Writer) error
+	Apply(context.Context) error
+}
+
+func run(ctx context.Context, args []string, service monitor.Service, configuration setupCommand, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
-	if (args[0] == "list" && len(args) != 1) || (args[0] == "get" && len(args) != 2) || (args[0] == "set" && len(args) != 3) {
+	if (args[0] == "setup" && len(args) != 1 && !(len(args) == 2 && args[1] == "--apply")) ||
+		(args[0] == "list" && len(args) != 1) || (args[0] == "get" && len(args) != 2) || (args[0] == "set" && len(args) != 3) {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
 	var err error
 	switch args[0] {
+	case "setup":
+		if len(args) == 2 {
+			err = configuration.Apply(ctx)
+			break
+		}
+		if err = configuration.Run(ctx, stdout, stderr); err != nil {
+			break
+		}
+		var displays []monitor.Display
+		displays, err = service.List(ctx)
+		if err == nil {
+			fmt.Fprintf(stdout, "DDC/CI check: %d brightness-capable monitor(s) detected.\n", len(displays))
+		}
 	case "list":
 		var displays []monitor.Display
 		displays, err = service.List(ctx)

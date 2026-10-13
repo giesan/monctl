@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -11,6 +13,17 @@ import (
 
 type backend struct {
 	write int
+}
+
+type fakeSetup struct{ applied bool }
+
+func (f *fakeSetup) Run(_ context.Context, out, _ io.Writer) error {
+	fmt.Fprintln(out, "i2c-dev setup complete.")
+	return nil
+}
+func (f *fakeSetup) Apply(context.Context) error {
+	f.applied = true
+	return nil
 }
 
 func (b *backend) Detect(context.Context) ([]monitor.Display, error) {
@@ -39,12 +52,27 @@ func TestCommandsAndInvalidArguments(t *testing.T) {
 		{[]string{"list", "extra"}, 2, ""},
 	} {
 		var out, errs bytes.Buffer
-		code := run(context.Background(), tc.args, monitor.Service{Backend: b}, &out, &errs)
+		code := run(context.Background(), tc.args, monitor.Service{Backend: b}, nil, &out, &errs)
 		if code != tc.code || !strings.Contains(out.String(), tc.output) {
 			t.Errorf("args %v: exit=%d stdout=%q stderr=%q", tc.args, code, out.String(), errs.String())
 		}
 	}
 	if b.write != 20 {
 		t.Fatalf("write = %d, want 20", b.write)
+	}
+}
+
+func TestSetupAndPrivilegedHelper(t *testing.T) {
+	b := &backend{}
+	s := &fakeSetup{}
+	var out, errs bytes.Buffer
+	if code := run(context.Background(), []string{"setup"}, monitor.Service{Backend: b}, s, &out, &errs); code != 0 || !strings.Contains(out.String(), "1 brightness-capable monitor") {
+		t.Fatalf("setup: exit=%d output=%q error=%q", code, out.String(), errs.String())
+	}
+	if code := run(context.Background(), []string{"setup", "--apply"}, monitor.Service{Backend: b}, s, &out, &errs); code != 0 || !s.applied {
+		t.Fatalf("apply: exit=%d applied=%t error=%q", code, s.applied, errs.String())
+	}
+	if code := run(context.Background(), []string{"setup", "bad"}, monitor.Service{Backend: b}, s, &out, &errs); code != 2 {
+		t.Fatalf("bad args: exit=%d", code)
 	}
 }
