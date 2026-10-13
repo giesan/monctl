@@ -6,7 +6,7 @@ The hardware controls work independently of Cinnamon, GNOME, KDE, X11, and Wayla
 
 ## Requirements
 
-- Go 1.22 or newer to build
+- Go 1.27 or newer to build
 - `ddcutil` installed (on Manjaro: `sudo pacman -S ddcutil`)
 - A DDC/CI-capable external monitor with DDC/CI enabled in its on-screen menu
 - Permission to access its `/dev/i2c-*` device; consult the [ddcutil setup guide](https://www.ddcutil.com/config_steps/) if detection fails
@@ -53,8 +53,28 @@ the Linux system volume. Some monitors do not support these controls.
 `laptop get` and `laptop set <percent>` control the built-in panel using
 `/sys/class/backlight` and systemd-logind (via `busctl`). They do not use DDC/CI
 or `ddcutil`. If multiple laptop backlight devices are found, the command
-reports the ambiguity instead of picking one. A graphical interface is planned
-for later.
+reports the ambiguity instead of picking one.
+
+## Tray
+
+Start `go run ./cmd/monctl-tray` in a desktop session. The icon provides
+5-percent brightness steps for every detected external display and, when
+available, the laptop panel. Its **Schieberegler öffnen** menu item starts
+`monctl-window`. It uses StatusNotifierItem and DBusMenu over the
+user's D-Bus session bus; the Go build does not require CGO. If Cinnamon
+does not have a StatusNotifier host, enable the **XApp Status Applet** in the
+panel. The applet can appear to disappear while it has no icons; it remains
+active if `xapp-status@cinnamon.org` is listed among Cinnamon's enabled
+applets. The tray program exits with a diagnostic when no host is available.
+The Arch/Manjaro package includes `monctl-tray` next to `monctl`.
+
+## Brightness window
+
+Run `CGO_ENABLED=0 go run -tags=nucular_shiny ./cmd/monctl-window` for a
+separate desktop window with brightness sliders for external monitors and the
+laptop panel. This first window uses X11 (or XWayland in a Wayland session).
+The CGO-free Arch/Manjaro package also includes `monctl-window`. Slider
+changes are debounced to avoid overwhelming DDC/CI monitors.
 
 ## Build an Arch/Manjaro package
 
