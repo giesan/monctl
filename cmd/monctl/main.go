@@ -21,7 +21,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "monctl:", err)
 		os.Exit(1)
 	}
-	os.Exit(run(context.Background(), os.Args[1:], monitor.Service{Backend: ddc.New()}, configuration, backlight.New(), os.Stdout, os.Stderr))
+	service := monitor.Service{Backend: ddc.New()}
+	laptop := backlight.New()
+	os.Exit(runApp(context.Background(), os.Args[1:], service, configuration, laptop, func() error {
+		return runWindow(service, laptop)
+	}, os.Stdout, os.Stderr))
 }
 
 type setupCommand interface {
@@ -32,6 +36,17 @@ type setupCommand interface {
 type laptopControl interface {
 	Get(context.Context) (int, error)
 	Set(context.Context, int) error
+}
+
+func runApp(ctx context.Context, args []string, service monitor.Service, configuration setupCommand, laptop laptopControl, openWindow func() error, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		if err := openWindow(); err != nil {
+			fmt.Fprintln(stderr, "monctl:", err)
+			return 1
+		}
+		return 0
+	}
+	return run(ctx, args, service, configuration, laptop, stdout, stderr)
 }
 
 func run(ctx context.Context, args []string, service monitor.Service, configuration setupCommand, laptop laptopControl, stdout, stderr io.Writer) int {

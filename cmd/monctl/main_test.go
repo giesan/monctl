@@ -85,6 +85,35 @@ func TestCommandsAndInvalidArguments(t *testing.T) {
 	}
 }
 
+func TestWindowOnlyOpensWithoutArguments(t *testing.T) {
+	b := &backend{}
+	opened := 0
+	open := func() error {
+		opened++
+		return nil
+	}
+	var out, errs bytes.Buffer
+	if code := runApp(context.Background(), nil, monitor.Service{Backend: b}, nil, nil, open, &out, &errs); code != 0 || opened != 1 || out.Len() != 0 || errs.Len() != 0 {
+		t.Fatalf("window: exit=%d opened=%d stdout=%q stderr=%q", code, opened, out.String(), errs.String())
+	}
+	if code := runApp(context.Background(), []string{"list"}, monitor.Service{Backend: b}, nil, nil, open, &out, &errs); code != 0 || opened != 1 || !strings.Contains(out.String(), "Example") {
+		t.Fatalf("list: exit=%d opened=%d stdout=%q stderr=%q", code, opened, out.String(), errs.String())
+	}
+	if code := runApp(context.Background(), []string{"unknown"}, monitor.Service{Backend: b}, nil, nil, open, &out, &errs); code != 2 || opened != 1 || !strings.Contains(errs.String(), usage) {
+		t.Fatalf("unknown: exit=%d opened=%d stderr=%q", code, opened, errs.String())
+	}
+}
+
+func TestWindowError(t *testing.T) {
+	var out, errs bytes.Buffer
+	code := runApp(context.Background(), nil, monitor.Service{}, nil, nil, func() error {
+		return fmt.Errorf("no X11 display available")
+	}, &out, &errs)
+	if code != 1 || out.Len() != 0 || !strings.Contains(errs.String(), "monctl: no X11 display available") {
+		t.Fatalf("exit=%d stdout=%q stderr=%q", code, out.String(), errs.String())
+	}
+}
+
 func TestImplicitMonitorFailsForMultipleDisplays(t *testing.T) {
 	b := &backend{displays: []monitor.Display{{Bus: 5, Model: "A"}, {Bus: 6, Model: "B"}}}
 	var out, errs bytes.Buffer

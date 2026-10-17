@@ -8,26 +8,6 @@ builds:
   - id: monctl
     main: ./cmd/monctl
     binary: monctl
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-  - id: monctl-tray
-    main: ./cmd/monctl-tray
-    binary: monctl-tray
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-  - id: monctl-window
-    main: ./cmd/monctl-window
-    binary: monctl-window
     flags:
       - -tags=nucular_shiny
     env:
@@ -43,8 +23,6 @@ nfpms:
     package_name: monctl
     builds:
       - monctl
-      - monctl-tray
-      - monctl-window
     formats:
       - archlinux
     maintainer: monctl contributors

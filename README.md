@@ -24,6 +24,7 @@ for DDC/CI monitors. It does not change device permissions; if access is
 denied, follow the ddcutil guide linked above. Repeating setup is safe.
 
 ```sh
+CGO_ENABLED=0 go run -tags=nucular_shiny ./cmd/monctl
 go run ./cmd/monctl setup
 go run ./cmd/monctl list
 go run ./cmd/monctl get
@@ -38,7 +39,9 @@ go run ./cmd/monctl laptop get
 go run ./cmd/monctl laptop set 50
 ```
 
-For a standalone executable, run `go build -o monctl ./cmd/monctl` and use
+For a standalone executable with the window, run
+`CGO_ENABLED=0 go build -tags=nucular_shiny -o monctl ./cmd/monctl`.
+Run `./monctl` to open the window, or use
 `./monctl list`, `./monctl get [bus]`, and `./monctl set [bus] <percent>`.
 With exactly one brightness-capable external monitor, the bus number is optional.
 With multiple monitors, specify a bus number returned by `list`. Bus numbers can change after
@@ -55,32 +58,20 @@ the Linux system volume. Some monitors do not support these controls.
 or `ddcutil`. If multiple laptop backlight devices are found, the command
 reports the ambiguity instead of picking one.
 
-## Tray
-
-Start `go run ./cmd/monctl-tray` in a desktop session. The icon provides
-5-percent brightness steps for every detected external display and, when
-available, the laptop panel. Its **Schieberegler öffnen** menu item starts
-`monctl-window`. It uses StatusNotifierItem and DBusMenu over the
-user's D-Bus session bus; the Go build does not require CGO. If Cinnamon
-does not have a StatusNotifier host, enable the **XApp Status Applet** in the
-panel. The applet can appear to disappear while it has no icons; it remains
-active if `xapp-status@cinnamon.org` is listed among Cinnamon's enabled
-applets. The tray program exits with a diagnostic when no host is available.
-The Arch/Manjaro package includes `monctl-tray` next to `monctl`.
-
 ## Brightness window
 
-Run `CGO_ENABLED=0 go run -tags=nucular_shiny ./cmd/monctl-window` for a
-separate desktop window with brightness sliders for external monitors and the
-laptop panel. This first window uses X11 (or XWayland in a Wayland session).
-The CGO-free Arch/Manjaro package also includes `monctl-window`. Slider
-changes are debounced to avoid overwhelming DDC/CI monitors.
+Run `monctl` without arguments for a desktop window with brightness sliders
+for external monitors and the laptop panel. Close the window to exit. The
+window uses X11 (or XWayland in a Wayland session) and is built without CGO.
+Without the `nucular_shiny` build tag, only CLI commands are available; the
+no-argument invocation reports how to build the window. Slider changes are
+debounced to avoid overwhelming DDC/CI monitors.
 
 ## Build an Arch/Manjaro package
 
 With GoReleaser v2 installed, run `goreleaser release --snapshot --clean`.
 The resulting Arch Linux packages for x86-64 and ARM64 are placed in `dist/`.
-The package installs `monctl` to `/usr/bin` and depends on `ddcutil` and
+The package installs only `monctl` to `/usr/bin` and depends on `ddcutil` and
 `systemd` (`busctl`). After installing the package, run `monctl setup` as your
 normal user to configure the I2C module and check monitor access. Snapshot
 packages are for local testing; no publishing or Git tag is required.

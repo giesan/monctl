@@ -2,10 +2,7 @@ module github.com/giesan/monitorcontrol
 
 go 1.27
 
-require (
-	github.com/aarzilli/nucular v0.0.0-20260922071552-58b808aa5772
-	github.com/godbus/dbus/v5 v5.2.4
-)
+require github.com/aarzilli/nucular v0.0.0-20260922071552-58b808aa5772
 
 require (
 	dmitri.shuralyov.com/gpu/mtl v0.0.0-20221208032759-85de2813cf6b // indirect
