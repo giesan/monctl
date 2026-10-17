@@ -1,19 +1,18 @@
-// Package window provides slider state for the desktop brightness window.
+// Package window provides slider state for desktop monitor controls.
 package window
 
 import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/giesan/monitorcontrol/internal/monitor"
 )
 
 type monitors interface {
-	List(context.Context) ([]monitor.Display, error)
-	Get(context.Context, int) (int, error)
-	Set(context.Context, int, int) error
+	Detect(context.Context) ([]monitor.Display, error)
+	GetFeature(context.Context, int, monitor.Feature) (int, error)
+	SetFeature(context.Context, int, monitor.Feature, int) error
 }
 
 type laptop interface {
@@ -25,6 +24,8 @@ type slider struct {
 	label   string
 	value   int // UI goroutine only
 	bus     int
+	model   string
+	feature monitor.Feature
 	laptop  bool
 	updates chan int
 }
@@ -40,23 +41,34 @@ type Model struct {
 
 func New(ctx context.Context, monitors monitors, laptop laptop, changed func()) *Model {
 	m := &Model{monitors: monitors, laptop: laptop, changed: changed}
-	displays, err := monitors.List(ctx)
+	displays, err := monitors.Detect(ctx)
 	if err != nil {
 		m.setMessage(fmt.Sprintf("Externe Monitore: %v", err))
 	}
 	for _, display := range displays {
-		value, err := monitors.Get(ctx, display.Bus)
-		if err != nil {
-			m.setMessage(fmt.Sprintf("%s: %v", display.Model, err))
-			continue
+		for _, feature := range []monitor.Feature{monitor.Brightness, monitor.Contrast, monitor.Volume} {
+			value, err := monitors.GetFeature(ctx, display.Bus, feature)
+			if err != nil {
+				if !monitor.IsUnsupported(err) {
+					m.setMessage(fmt.Sprintf("%s (Bus %d), %s: %v", display.Model, display.Bus, feature, err))
+				}
+				continue
+			}
+			label := "Helligkeit"
+			switch feature {
+			case monitor.Contrast:
+				label = "Kontrast"
+			case monitor.Volume:
+				label = "Monitorlautstärke"
+			}
+			m.sliders = append(m.sliders, &slider{label: label, model: display.Model, feature: feature, bus: display.Bus, value: value, updates: make(chan int, 1)})
 		}
-		m.sliders = append(m.sliders, &slider{label: fmt.Sprintf("%s (Bus %d)", display.Model, display.Bus), bus: display.Bus, value: value, updates: make(chan int, 1)})
 	}
 	if value, err := laptop.Get(ctx); err == nil {
 		m.sliders = append(m.sliders, &slider{label: "Laptop", laptop: true, value: value, updates: make(chan int, 1)})
 	}
 	if len(m.sliders) == 0 && m.Message() == "" {
-		m.setMessage("Keine Helligkeitsregler gefunden")
+		m.setMessage("Keine Regler gefunden")
 	}
 	return m
 }
@@ -80,11 +92,17 @@ func (m *Model) setMessage(message string) {
 func (m *Model) Request(index, percent int) {
 	s := m.sliders[index]
 	s.value = percent
-	select {
-	case s.updates <- percent:
-	default:
-		<-s.updates
-		s.updates <- percent
+	for {
+		select {
+		case s.updates <- percent:
+			return
+		default:
+			// The worker may have taken the value since the send was tried.
+			select {
+			case <-s.updates:
+			default:
+			}
+		}
 	}
 }
 
@@ -102,39 +120,22 @@ func (m *Model) process(ctx context.Context, slider *slider) {
 			return
 		case value = <-slider.updates:
 		}
-		// Avoid sending a DDC transaction for every pixel while dragging.
-		timer := time.NewTimer(220 * time.Millisecond)
-	debounce:
-		for {
-			select {
-			case <-ctx.Done():
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
-				return
-			case value = <-slider.updates:
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
-				timer.Reset(220 * time.Millisecond)
-			case <-timer.C:
-				break debounce
-			}
+		if ctx.Err() != nil {
+			return
 		}
+		// Requests during a write replace the one pending value in the channel.
 		var err error
 		if slider.laptop {
 			err = m.laptop.Set(ctx, value)
 		} else {
-			err = m.monitors.Set(ctx, slider.bus, value)
+			err = m.monitors.SetFeature(ctx, slider.bus, slider.feature, value)
 		}
 		if err != nil {
-			m.setMessage(fmt.Sprintf("%s: %v", slider.label, err))
+			if slider.laptop {
+				m.setMessage(fmt.Sprintf("%s: %v", slider.label, err))
+			} else {
+				m.setMessage(fmt.Sprintf("%s (Bus %d), %s: %v", slider.model, slider.bus, slider.label, err))
+			}
 		} else if m.Message() != "" {
 			m.setMessage("")
 		}

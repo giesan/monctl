@@ -21,9 +21,19 @@ func Run(monitors monitors, laptop laptop) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	state := New(ctx, monitors, laptop, nil)
-	height := min(680, 110+len(state.sliders)*78)
+	groups := 0
+	for i, slider := range state.sliders {
+		if !slider.laptop && (i == 0 || state.sliders[i-1].bus != slider.bus) {
+			groups++
+		}
+	}
+	height := min(680, 110+groups*32+len(state.sliders)*78)
 	wnd := nucular.NewMasterWindowSize(0, "Monitor Control", image.Pt(480, height), func(w *nucular.Window) {
 		for index, slider := range state.sliders {
+			if !slider.laptop && (index == 0 || state.sliders[index-1].bus != slider.bus) {
+				w.Row(30).Dynamic(1)
+				w.Label(fmt.Sprintf("%s (Bus %d)", slider.model, slider.bus), label.Align("LC"))
+			}
 			w.Row(30).Dynamic(1)
 			w.Label(fmt.Sprintf("%s — %d%%", slider.label, slider.value), label.Align("LC"))
 			w.Row(38).Dynamic(1)

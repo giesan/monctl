@@ -49,6 +49,11 @@ type Service struct {
 	Backend Backend
 }
 
+// Detect returns all DDC/CI displays without filtering by feature support.
+func (s Service) Detect(ctx context.Context) ([]Display, error) {
+	return s.Backend.Detect(ctx)
+}
+
 func (s Service) List(ctx context.Context) ([]Display, error) {
 	return s.ListFeature(ctx, Brightness)
 }

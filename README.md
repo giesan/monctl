@@ -7,6 +7,7 @@ The hardware controls work independently of Cinnamon, GNOME, KDE, X11, and Wayla
 ## Requirements
 
 - Go 1.27 or newer to build
+- [Task](https://taskfile.dev/) (go-task) for the optional `task` build shortcuts
 - `ddcutil` installed (on Manjaro: `sudo pacman -S ddcutil`)
 - A DDC/CI-capable external monitor with DDC/CI enabled in its on-screen menu
 - Permission to access its `/dev/i2c-*` device; consult the [ddcutil setup guide](https://www.ddcutil.com/config_steps/) if detection fails
@@ -39,10 +40,14 @@ go run ./cmd/monctl laptop get
 go run ./cmd/monctl laptop set 50
 ```
 
-For a standalone executable with the window, run
-`CGO_ENABLED=0 go build -tags=nucular_shiny -o monctl ./cmd/monctl`.
-Run `./monctl` to open the window, or use
-`./monctl list`, `./monctl get [bus]`, and `./monctl set [bus] <percent>`.
+For a standalone executable with the window, run `task` (or `task build`).
+The result is `build/monctl`; run `./build/monctl` to open the window, or use
+`./build/monctl list`, `./build/monctl get [bus]`, and `./build/monctl set [bus] <percent>`.
+Use `task run` on an X11/XWayland desktop to rebuild and open the window in
+one step. The task exits when the window closes.
+Without Task, use `mkdir -p build` and
+`CGO_ENABLED=0 go build -tags=nucular_shiny -o build/monctl ./cmd/monctl`.
+Run `task test` to test both CLI and GUI configurations.
 With exactly one brightness-capable external monitor, the bus number is optional.
 With multiple monitors, specify a bus number returned by `list`. Bus numbers can change after
 reconnecting displays or rebooting. `set` accepts whole percentages from 0 to
@@ -60,16 +65,21 @@ reports the ambiguity instead of picking one.
 
 ## Brightness window
 
-Run `monctl` without arguments for a desktop window with brightness sliders
-for external monitors and the laptop panel. Close the window to exit. The
+Run `monctl` without arguments for a desktop window with brightness, contrast,
+and monitor-speaker volume sliders for external monitors, plus a brightness
+slider for the laptop panel. Unsupported monitor controls are hidden. Monitor
+volume does not affect the Linux system volume. Close the window to exit. The
 window uses X11 (or XWayland in a Wayland session) and is built without CGO.
 Without the `nucular_shiny` build tag, only CLI commands are available; the
-no-argument invocation reports how to build the window. Slider changes are
-debounced to avoid overwhelming DDC/CI monitors.
+no-argument invocation reports how to build the window. Slider changes start
+immediately; while a device command is running, only the latest pending value
+is kept to avoid overwhelming DDC/CI monitors.
 
 ## Build an Arch/Manjaro package
 
-With GoReleaser v2 installed, run `goreleaser release --snapshot --clean`.
+With GoReleaser v2 installed, run `task package` (or
+`goreleaser release --snapshot --clean`). This replaces existing contents of
+`dist/`.
 The resulting Arch Linux packages for x86-64 and ARM64 are placed in `dist/`.
 The package installs only `monctl` to `/usr/bin` and depends on `ddcutil` and
 `systemd` (`busctl`). After installing the package, run `monctl setup` as your
