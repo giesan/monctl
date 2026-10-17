@@ -3,6 +3,7 @@ package backlight
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -31,6 +32,7 @@ type Controller struct {
 	root      string
 	sessionID func() string
 	pid       func() int
+	uid       func() int
 	run       runner
 }
 
@@ -39,6 +41,7 @@ func New() *Controller {
 		root:      "/sys/class/backlight",
 		sessionID: func() string { return os.Getenv("XDG_SESSION_ID") },
 		pid:       os.Getpid,
+		uid:       os.Getuid,
 		run:       executable{},
 	}
 }
@@ -115,7 +118,11 @@ func (c *Controller) session(ctx context.Context) (string, error) {
 	}
 	out, err := c.run.Run(ctx, args...)
 	if err != nil {
-		return "", fmt.Errorf("find graphical login session via logind: %s: %w", strings.TrimSpace(out), err)
+		path, fallbackErr := c.graphicalSession(ctx)
+		if fallbackErr != nil {
+			return "", fmt.Errorf("find graphical login session via logind: %s: %v; fallback: %w", strings.TrimSpace(out), err, fallbackErr)
+		}
+		return path, nil
 	}
 	fields := strings.Fields(out)
 	if len(fields) != 2 || fields[0] != "o" {
@@ -126,6 +133,100 @@ func (c *Controller) session(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("invalid logind session path: %q", path)
 	}
 	return path, nil
+}
+
+// busctl's JSON output keeps the types and array boundaries of the D-Bus reply.
+type busReply struct {
+	Type string            `json:"type"`
+	Data []json.RawMessage `json:"data"`
+}
+
+func (c *Controller) sessionProperty(ctx context.Context, path, name string, value any) error {
+	out, err := c.run.Run(ctx, "--json=short", "--system", "get-property", logind, path, logind+".Session", name)
+	if err != nil {
+		return fmt.Errorf("read logind session %s: %s: %w", name, strings.TrimSpace(out), err)
+	}
+	var reply struct {
+		Type string          `json:"type"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(out), &reply); err != nil {
+		return fmt.Errorf("decode logind session %s: %w", name, err)
+	}
+	expected := "b"
+	if name == "Type" {
+		expected = "s"
+	}
+	if reply.Type != expected || len(reply.Data) == 0 {
+		return fmt.Errorf("unexpected logind session %s response: %q", name, strings.TrimSpace(out))
+	}
+	if err := json.Unmarshal(reply.Data, value); err != nil {
+		return fmt.Errorf("decode logind session %s: %w", name, err)
+	}
+	return nil
+}
+
+func (c *Controller) graphicalSession(ctx context.Context) (string, error) {
+	out, err := c.run.Run(ctx, "--json=short", "--system", "call", logind, managerPath, logind+".Manager", "ListSessions")
+	if err != nil {
+		return "", fmt.Errorf("list logind sessions: %s: %w", strings.TrimSpace(out), err)
+	}
+	var reply busReply
+	if err := json.Unmarshal([]byte(out), &reply); err != nil {
+		return "", fmt.Errorf("decode logind sessions: %w", err)
+	}
+	if reply.Type != "a(susso)" || len(reply.Data) != 1 {
+		return "", fmt.Errorf("unexpected logind sessions response: %q", strings.TrimSpace(out))
+	}
+	var sessions [][]json.RawMessage
+	if err := json.Unmarshal(reply.Data[0], &sessions); err != nil {
+		return "", fmt.Errorf("decode logind sessions: %w", err)
+	}
+	var matches []string
+	for _, session := range sessions {
+		if len(session) != 5 {
+			return "", fmt.Errorf("invalid logind session entry: %q", session)
+		}
+		var uid int
+		if err := json.Unmarshal(session[1], &uid); err != nil {
+			return "", fmt.Errorf("decode logind session UID: %w", err)
+		}
+		if uid != c.uid() {
+			continue
+		}
+		var path string
+		if err := json.Unmarshal(session[4], &path); err != nil || !sessionPath.MatchString(path) {
+			return "", fmt.Errorf("invalid logind session path: %q", session[4])
+		}
+		var active, remote bool
+		var kind string
+		if err := c.sessionProperty(ctx, path, "Active", &active); err != nil {
+			return "", err
+		}
+		if !active {
+			continue
+		}
+		if err := c.sessionProperty(ctx, path, "Remote", &remote); err != nil {
+			return "", err
+		}
+		if remote {
+			continue
+		}
+		if err := c.sessionProperty(ctx, path, "Type", &kind); err != nil {
+			return "", err
+		}
+		if kind == "x11" || kind == "wayland" {
+			matches = append(matches, path)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("no active local graphical logind session for UID %d", c.uid())
+	case 1:
+		return matches[0], nil
+	default:
+		return "", fmt.Errorf("multiple active local graphical logind sessions for UID %d", c.uid())
+	}
 }
 
 func (c *Controller) Set(ctx context.Context, percent int) error {
