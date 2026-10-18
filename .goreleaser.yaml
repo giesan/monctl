@@ -2,7 +2,9 @@ version: 2
 project_name: monctl
 
 release:
-  disable: true
+  github:
+    owner: giesan
+    name: monitorcontrol
 
 builds:
   - id: monctl
@@ -10,6 +12,8 @@ builds:
     binary: monctl
     flags:
       - -tags=gtk
+    ldflags:
+      - -s -w -X github.com/giesan/monitorcontrol/internal/version.Value=v{{ .Version }}
     env:
       - CGO_ENABLED=1
     goos:

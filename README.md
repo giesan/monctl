@@ -9,7 +9,8 @@ volume.
 
 ## Install and set up
 
-Install the prebuilt package for your system, if you have one:
+Download the prebuilt package for your system from
+[GitHub Releases](https://github.com/giesan/monitorcontrol/releases), then run:
 
 ```sh
 # Debian / Ubuntu: from the directory containing the downloaded .deb
@@ -51,6 +52,7 @@ GTK 3 theme on X11 or Wayland.
 The installed package also provides these commands:
 
 ```sh
+monctl --version             # Show the installed version
 monctl list                  # List external monitors and their bus numbers
 monctl get                   # Read external monitor brightness
 monctl set 50                # Set external monitor brightness to 50%

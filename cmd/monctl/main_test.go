@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/giesan/monitorcontrol/internal/monitor"
+	"github.com/giesan/monitorcontrol/internal/version"
 )
 
 type backend struct {
@@ -101,6 +102,21 @@ func TestWindowOnlyOpensWithoutArguments(t *testing.T) {
 	}
 	if code := runApp(context.Background(), []string{"unknown"}, monitor.Service{Backend: b}, nil, nil, open, &out, &errs); code != 2 || opened != 1 || !strings.Contains(errs.String(), usage) {
 		t.Fatalf("unknown: exit=%d opened=%d stderr=%q", code, opened, errs.String())
+	}
+}
+
+func TestVersionDoesNotOpenWindowOrDetectMonitors(t *testing.T) {
+	opened := false
+	var out, errs bytes.Buffer
+	code := runApp(context.Background(), []string{"--version"}, monitor.Service{}, nil, nil, func() error {
+		opened = true
+		return nil
+	}, &out, &errs)
+	if code != 0 || opened || errs.Len() != 0 || out.String() != "monctl "+version.Value+"\n" {
+		t.Fatalf("version: exit=%d opened=%t stdout=%q stderr=%q", code, opened, out.String(), errs.String())
+	}
+	if code := runApp(context.Background(), []string{"--version", "extra"}, monitor.Service{}, nil, nil, nil, &out, &errs); code != 2 {
+		t.Fatalf("extra version argument: exit=%d", code)
 	}
 }
 

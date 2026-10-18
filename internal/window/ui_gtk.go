@@ -9,6 +9,7 @@ import (
 	"runtime"
 
 	"github.com/giesan/monitorcontrol/internal/monitor"
+	"github.com/giesan/monitorcontrol/internal/version"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
@@ -52,7 +53,7 @@ func Run(monitors monitors, laptop laptop) error {
 	if err != nil {
 		return err
 	}
-	win.SetTitle("Monitor Control")
+	win.SetTitle(version.WindowTitle())
 	if err := setWindowIcons(win); err != nil {
 		return err
 	}

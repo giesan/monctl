@@ -48,6 +48,10 @@ to build the window. Window slider changes are sent immediately; while a device
 command runs, only the latest pending value is retained to avoid overwhelming
 DDC/CI monitors.
 
+Local builds show `dev` in `monctl --version` and the window title. GoReleaser
+sets the shared build version through linker flags from the release version;
+snapshot packages display a snapshot version instead of `dev`.
+
 ## Build packages
 
 With GoReleaser v2 installed, run `task package`, or without Task:
@@ -55,6 +59,10 @@ With GoReleaser v2 installed, run `task package`, or without Task:
 ```sh
 goreleaser release --snapshot --clean
 ```
+
+GoReleaser needs a Git remote even for a snapshot once GitHub publishing is
+configured. Set `origin` to the hosted repository before running this command;
+the snapshot itself never uploads artifacts.
 
 This **replaces the contents of `dist/`** with an Arch/Manjaro `.pkg.tar.zst`,
 a Debian/Ubuntu `.deb`, and a `.tar.gz` for x86-64 Linux. The packages install
@@ -66,3 +74,27 @@ package build does not prove runtime compatibility with every Debian/Ubuntu
 release: test installation and launch on the target distribution before
 distributing a package broadly. For details, see the
 [Debian/Ubuntu package design](docs/superpowers/specs/2026-10-18-debian-ubuntu-package-design.md).
+
+## GitHub checks and releases
+
+GitHub Actions runs formatting checks, `go vet`, headless and GTK-tagged Go
+tests, and `goreleaser check` on pull requests and pushes to `main` or a
+version tag. GTK development files are installed on the Ubuntu 22.04 runner;
+display-dependent tests may skip when no desktop is available.
+
+After the version feature and workflow are merged, create and push a release
+tag pointing to the tested commit:
+
+```sh
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+A successful `vMAJOR.MINOR.PATCH` tag build automatically publishes a GitHub
+Release with the amd64 `.deb`, Arch/Manjaro package, tarball and checksums.
+The binary reports the tag with `monctl --version` and in the window title.
+The release job alone has `contents: write` permission; the checks job is
+read-only. Protect release tags in GitHub repository settings so only trusted
+maintainers can trigger publishing. GoReleaser snapshots remain local and do
+not publish anything. Validate end-to-end publishing only after the repository
+is hosted on GitHub; a local snapshot cannot test the release upload.

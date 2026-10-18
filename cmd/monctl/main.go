@@ -11,9 +11,10 @@ import (
 	"github.com/giesan/monitorcontrol/internal/ddc"
 	"github.com/giesan/monitorcontrol/internal/monitor"
 	"github.com/giesan/monitorcontrol/internal/setup"
+	"github.com/giesan/monitorcontrol/internal/version"
 )
 
-const usage = "Usage: monctl setup | list | get [bus] | set [bus] <percent> | contrast|volume get [bus] | contrast|volume set [bus] <percent> | laptop get | laptop set <percent>"
+const usage = "Usage: monctl --version | setup | list | get [bus] | set [bus] <percent> | contrast|volume get [bus] | contrast|volume set [bus] <percent> | laptop get | laptop set <percent>"
 
 func main() {
 	configuration, err := setup.New()
@@ -50,6 +51,10 @@ func runApp(ctx context.Context, args []string, service monitor.Service, configu
 }
 
 func run(ctx context.Context, args []string, service monitor.Service, configuration setupCommand, laptop laptopControl, stdout, stderr io.Writer) int {
+	if len(args) == 1 && args[0] == "--version" {
+		fmt.Fprintf(stdout, "monctl %s\n", version.Value)
+		return 0
+	}
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, usage)
 		return 2
