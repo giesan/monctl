@@ -13,10 +13,12 @@ type fakeBackend struct {
 	errors   map[int]error
 	written  int
 	feature  Feature
+	reads    int
 }
 
 func (f *fakeBackend) Detect(context.Context) ([]Display, error) { return f.displays, nil }
 func (f *fakeBackend) Read(_ context.Context, bus int, _ Feature) (Level, error) {
+	f.reads++
 	return f.values[bus], f.errors[bus]
 }
 func (f *fakeBackend) Write(_ context.Context, _ int, feature Feature, value int) error {
@@ -83,5 +85,27 @@ func TestFeatureConversionAndWrite(t *testing.T) {
 	}
 	if err := s.SetFeature(context.Background(), 7, Volume, 50); err != nil || f.written != 40 || f.feature != Volume {
 		t.Fatalf("volume write=%d feature=%v err=%v", f.written, f.feature, err)
+	}
+}
+
+func TestReadFeatureAndWriteWithKnownMaximum(t *testing.T) {
+	f := &fakeBackend{values: map[int]Level{7: {Current: 25, Maximum: 80}}}
+	s := Service{Backend: f}
+	info, err := s.ReadFeature(context.Background(), 7, Contrast)
+	if err != nil || info != (FeatureValue{Percent: 31, Maximum: 80}) || f.reads != 1 {
+		t.Fatalf("read = %+v, reads=%d, err=%v", info, f.reads, err)
+	}
+	for _, tc := range []struct{ requested, device int }{{0, 0}, {50, 40}, {100, 80}, {37, 30}} {
+		if err := s.SetFeatureWithMaximum(context.Background(), 7, Contrast, info.Maximum, tc.requested); err != nil || f.written != tc.device || f.feature != Contrast || f.reads != 1 {
+			t.Fatalf("set %d%% wrote %d (feature %v), reads=%d, err=%v", tc.requested, f.written, f.feature, f.reads, err)
+		}
+	}
+	for _, tc := range []struct{ max, requested int }{{0, 50}, {-1, 50}, {80, -1}, {80, 101}} {
+		if err := s.SetFeatureWithMaximum(context.Background(), 7, Volume, tc.max, tc.requested); err == nil || f.reads != 1 {
+			t.Fatalf("invalid max=%d requested=%d err=%v reads=%d", tc.max, tc.requested, err, f.reads)
+		}
+	}
+	if err := s.SetFeature(context.Background(), 7, Volume, 50); err != nil || f.reads != 2 {
+		t.Fatalf("CLI set should read current maximum: reads=%d err=%v", f.reads, err)
 	}
 }

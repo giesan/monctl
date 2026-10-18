@@ -11,8 +11,8 @@ import (
 
 type monitors interface {
 	Detect(context.Context) ([]monitor.Display, error)
-	GetFeature(context.Context, int, monitor.Feature) (int, error)
-	SetFeature(context.Context, int, monitor.Feature, int) error
+	ReadFeature(context.Context, int, monitor.Feature) (monitor.FeatureValue, error)
+	SetFeatureWithMaximum(context.Context, int, monitor.Feature, int, int) error
 }
 
 type laptop interface {
@@ -26,6 +26,7 @@ type slider struct {
 	bus     int
 	model   string
 	feature monitor.Feature
+	maximum int
 	laptop  bool
 	updates chan int
 }
@@ -47,7 +48,7 @@ func New(ctx context.Context, monitors monitors, laptop laptop, changed func()) 
 	}
 	for _, display := range displays {
 		for _, feature := range []monitor.Feature{monitor.Brightness, monitor.Contrast, monitor.Volume} {
-			value, err := monitors.GetFeature(ctx, display.Bus, feature)
+			value, err := monitors.ReadFeature(ctx, display.Bus, feature)
 			if err != nil {
 				if !monitor.IsUnsupported(err) {
 					m.setMessage(fmt.Sprintf("%s (Bus %d), %s: %v", display.Model, display.Bus, feature, err))
@@ -61,7 +62,7 @@ func New(ctx context.Context, monitors monitors, laptop laptop, changed func()) 
 			case monitor.Volume:
 				label = "Monitorlautstärke"
 			}
-			m.sliders = append(m.sliders, &slider{label: label, model: display.Model, feature: feature, bus: display.Bus, value: value, updates: make(chan int, 1)})
+			m.sliders = append(m.sliders, &slider{label: label, model: display.Model, feature: feature, bus: display.Bus, value: value.Percent, maximum: value.Maximum, updates: make(chan int, 1)})
 		}
 	}
 	if value, err := laptop.Get(ctx); err == nil {
@@ -128,7 +129,7 @@ func (m *Model) process(ctx context.Context, slider *slider) {
 		if slider.laptop {
 			err = m.laptop.Set(ctx, value)
 		} else {
-			err = m.monitors.SetFeature(ctx, slider.bus, slider.feature, value)
+			err = m.monitors.SetFeatureWithMaximum(ctx, slider.bus, slider.feature, slider.maximum, value)
 		}
 		if err != nil {
 			if slider.laptop {

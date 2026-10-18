@@ -22,27 +22,34 @@ type controlWrite struct {
 }
 
 type fakeMonitors struct {
-	displays []monitor.Display
-	values   map[controlKey]int
-	errors   map[controlKey]error
-	setError error
-	mu       sync.Mutex
-	writes   []controlWrite
-	reads    []controlKey
+	displays        []monitor.Display
+	values          map[controlKey]int
+	maxima          map[controlKey]int
+	errors          map[controlKey]error
+	setError        error
+	mu              sync.Mutex
+	writes          []controlWrite
+	writtenMaximums []int
+	reads           []controlKey
 }
 
 func (f *fakeMonitors) Detect(context.Context) ([]monitor.Display, error) {
 	return f.displays, nil
 }
-func (f *fakeMonitors) GetFeature(_ context.Context, bus int, feature monitor.Feature) (int, error) {
+func (f *fakeMonitors) ReadFeature(_ context.Context, bus int, feature monitor.Feature) (monitor.FeatureValue, error) {
 	key := controlKey{bus, feature}
 	f.reads = append(f.reads, key)
-	return f.values[key], f.errors[key]
+	maximum := f.maxima[key]
+	if maximum == 0 {
+		maximum = 100
+	}
+	return monitor.FeatureValue{Percent: f.values[key], Maximum: maximum}, f.errors[key]
 }
-func (f *fakeMonitors) SetFeature(_ context.Context, bus int, feature monitor.Feature, value int) error {
+func (f *fakeMonitors) SetFeatureWithMaximum(_ context.Context, bus int, feature monitor.Feature, maximum, value int) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.writes = append(f.writes, controlWrite{controlKey{bus, feature}, value})
+	f.writtenMaximums = append(f.writtenMaximums, maximum)
 	return f.setError
 }
 
@@ -101,6 +108,45 @@ func TestWindowShowsSupportedFeaturesPerMonitor(t *testing.T) {
 	}
 }
 
+func TestWindowWritesWithStartupMaximumWithoutRereading(t *testing.T) {
+	key := controlKey{7, monitor.Contrast}
+	monitors := &fakeMonitors{
+		displays: []monitor.Display{{Bus: 7, Model: "PHL"}},
+		values:   map[controlKey]int{key: 25},
+		maxima:   map[controlKey]int{key: 80},
+		errors: map[controlKey]error{
+			{7, monitor.Brightness}: monitor.ErrUnsupported,
+			{7, monitor.Volume}:     monitor.ErrUnsupported,
+		},
+	}
+	m := New(context.Background(), monitors, unavailableLaptop{}, nil)
+	if len(m.sliders) != 1 || m.sliders[0].maximum != 80 || len(monitors.reads) != 3 {
+		t.Fatalf("sliders=%+v reads=%v", m.sliders, monitors.reads)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.start(ctx)
+	m.Request(0, 50)
+	deadline := time.After(2 * time.Second)
+	for {
+		monitors.mu.Lock()
+		written := append([]controlWrite(nil), monitors.writes...)
+		maxima := append([]int(nil), monitors.writtenMaximums...)
+		monitors.mu.Unlock()
+		if len(written) > 0 {
+			if len(written) != 1 || written[0] != (controlWrite{key, 50}) || len(maxima) != 1 || maxima[0] != 80 || len(monitors.reads) != 3 {
+				t.Fatalf("writes=%v maxima=%v reads=%v", written, maxima, monitors.reads)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("monitor write did not happen")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
 func TestWindowKeepsWorkingAfterFeatureReadError(t *testing.T) {
 	monitors := &fakeMonitors{
 		displays: []monitor.Display{{Bus: 7, Model: "PHL"}},
@@ -139,7 +185,7 @@ type blockingMonitors struct {
 	release chan struct{}
 }
 
-func (b *blockingMonitors) SetFeature(ctx context.Context, bus int, feature monitor.Feature, value int) error {
+func (b *blockingMonitors) SetFeatureWithMaximum(ctx context.Context, bus int, feature monitor.Feature, maximum, value int) error {
 	write := controlWrite{controlKey{bus, feature}, value}
 	b.started <- write
 	if value == 40 {
@@ -149,7 +195,7 @@ func (b *blockingMonitors) SetFeature(ctx context.Context, bus int, feature moni
 			return ctx.Err()
 		}
 	}
-	return b.fakeMonitors.SetFeature(ctx, bus, feature, value)
+	return b.fakeMonitors.SetFeatureWithMaximum(ctx, bus, feature, maximum, value)
 }
 
 func waitWrite(t *testing.T, writes <-chan controlWrite) controlWrite {

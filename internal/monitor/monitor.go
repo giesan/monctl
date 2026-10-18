@@ -39,6 +39,12 @@ type Level struct {
 	Maximum int
 }
 
+// FeatureValue contains the displayed percentage and the device maximum used to set it.
+type FeatureValue struct {
+	Percent int
+	Maximum int
+}
+
 type Backend interface {
 	Detect(context.Context) ([]Display, error)
 	Read(context.Context, int, Feature) (Level, error)
@@ -107,11 +113,20 @@ func (s Service) Get(ctx context.Context, bus int) (int, error) {
 }
 
 func (s Service) GetFeature(ctx context.Context, bus int, feature Feature) (int, error) {
+	value, err := s.ReadFeature(ctx, bus, feature)
+	return value.Percent, err
+}
+
+func (s Service) ReadFeature(ctx context.Context, bus int, feature Feature) (FeatureValue, error) {
 	level, err := s.Backend.Read(ctx, bus, feature)
 	if err != nil {
-		return 0, err
+		return FeatureValue{}, err
 	}
-	return percent(level)
+	value, err := percent(level)
+	if err != nil {
+		return FeatureValue{}, err
+	}
+	return FeatureValue{Percent: value, Maximum: level.Maximum}, nil
 }
 
 func (s Service) Set(ctx context.Context, bus, requested int) error {
@@ -126,10 +141,18 @@ func (s Service) SetFeature(ctx context.Context, bus int, feature Feature, reque
 	if err != nil {
 		return err
 	}
-	if level.Maximum <= 0 {
-		return fmt.Errorf("monitor reported invalid maximum %s %d", feature, level.Maximum)
+	return s.SetFeatureWithMaximum(ctx, bus, feature, level.Maximum, requested)
+}
+
+// SetFeatureWithMaximum avoids a fresh device read when the caller already has its maximum.
+func (s Service) SetFeatureWithMaximum(ctx context.Context, bus int, feature Feature, maximum, requested int) error {
+	if requested < 0 || requested > 100 {
+		return fmt.Errorf("%s must be between 0 and 100 percent", feature)
 	}
-	value := (requested*level.Maximum + 50) / 100
+	if maximum <= 0 {
+		return fmt.Errorf("monitor reported invalid maximum %s %d", feature, maximum)
+	}
+	value := (requested*maximum + 50) / 100
 	return s.Backend.Write(ctx, bus, feature, value)
 }
 
