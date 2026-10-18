@@ -90,6 +90,9 @@ To build from source, run tests, or create packages, see [DEVELOPMENT.md](DEVELO
 
 This project was implemented entirely with AI.
 
+Inspired by [MonitorControl](https://github.com/MonitorControl/MonitorControl),
+I originally built monctl for my own use. I hope others find it useful too.
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
