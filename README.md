@@ -77,3 +77,7 @@ To build from source, run tests, or create packages, see [DEVELOPMENT.md](DEVELO
 ## Project note
 
 This project was implemented entirely with AI.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
