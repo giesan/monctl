@@ -10,11 +10,16 @@ type deviceGroup struct {
 func groupSliders(sliders []*slider) []deviceGroup {
 	var groups []deviceGroup
 	for index, control := range sliders {
-		name := "Laptop-Bildschirm"
+		name := "Laptop display"
 		if !control.laptop {
-			name = fmt.Sprintf("%s (Bus %d)", control.model, control.bus)
+			name = control.model
 		}
-		if len(groups) == 0 || groups[len(groups)-1].name != name || control.laptop != sliders[groups[len(groups)-1].sliders[0]].laptop {
+		newGroup := len(groups) == 0
+		if !newGroup {
+			previous := sliders[groups[len(groups)-1].sliders[0]]
+			newGroup = control.laptop != previous.laptop || (!control.laptop && (control.bus != previous.bus || control.model != previous.model))
+		}
+		if newGroup {
 			groups = append(groups, deviceGroup{name: name})
 		}
 		groups[len(groups)-1].sliders = append(groups[len(groups)-1].sliders, index)
@@ -23,5 +28,5 @@ func groupSliders(sliders []*slider) []deviceGroup {
 }
 
 func formatPercent(value int) string {
-	return fmt.Sprintf("%d %%", value)
+	return fmt.Sprintf("%d%%", value)
 }

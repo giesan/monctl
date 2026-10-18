@@ -22,7 +22,7 @@ func TestGTKPercentageLabelStaysOnOneLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	text, err := label.GetText()
-	if err != nil || text != "100 %" || !label.GetSingleLineMode() || label.GetLineWrap() || label.GetWidthChars() < 5 {
+	if err != nil || text != "100%" || !label.GetSingleLineMode() || label.GetLineWrap() || label.GetWidthChars() < 5 {
 		t.Fatalf("label text=%q width=%d single=%v wrap=%v err=%v", text, label.GetWidthChars(), label.GetSingleLineMode(), label.GetLineWrap(), err)
 	}
 }
@@ -83,14 +83,14 @@ func TestGTKPreferredHeightTracksVisibleCards(t *testing.T) {
 	}
 	scroller.Add(content)
 	win.Add(scroller)
-	first, err := gtk.LabelNew("LG Ultra HD\nHelligkeit\nKontrast\nLautstärke")
+	first, err := gtk.LabelNew("LG Ultra HD\nBrightness\nContrast\nVolume")
 	if err != nil {
 		t.Fatal(err)
 	}
 	content.PackStart(first, false, false, 0)
 	win.ShowAll()
 	_, oneCard := scroller.GetPreferredHeightForWidth(480)
-	second, err := gtk.LabelNew("Laptop-Bildschirm\nHelligkeit")
+	second, err := gtk.LabelNew("Laptop display\nBrightness")
 	if err != nil {
 		t.Fatal(err)
 	}

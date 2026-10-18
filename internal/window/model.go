@@ -44,7 +44,7 @@ func New(ctx context.Context, monitors monitors, laptop laptop, changed func()) 
 	m := &Model{monitors: monitors, laptop: laptop, changed: changed}
 	displays, err := monitors.Detect(ctx)
 	if err != nil {
-		m.setMessage(fmt.Sprintf("Externe Monitore: %v", err))
+		m.setMessage(fmt.Sprintf("External monitors: %v", err))
 	}
 	for _, display := range displays {
 		for _, feature := range []monitor.Feature{monitor.Brightness, monitor.Contrast, monitor.Volume} {
@@ -55,21 +55,21 @@ func New(ctx context.Context, monitors monitors, laptop laptop, changed func()) 
 				}
 				continue
 			}
-			label := "Helligkeit"
+			label := "Brightness"
 			switch feature {
 			case monitor.Contrast:
-				label = "Kontrast"
+				label = "Contrast"
 			case monitor.Volume:
-				label = "Monitorlautstärke"
+				label = "Monitor volume"
 			}
 			m.sliders = append(m.sliders, &slider{label: label, model: display.Model, feature: feature, bus: display.Bus, value: value.Percent, maximum: value.Maximum, updates: make(chan int, 1)})
 		}
 	}
 	if value, err := laptop.Get(ctx); err == nil {
-		m.sliders = append(m.sliders, &slider{label: "Laptop", laptop: true, value: value, updates: make(chan int, 1)})
+		m.sliders = append(m.sliders, &slider{label: "Laptop display", laptop: true, value: value, updates: make(chan int, 1)})
 	}
 	if len(m.sliders) == 0 && m.Message() == "" {
-		m.setMessage("Keine Regler gefunden")
+		m.setMessage("No controls available")
 	}
 	return m
 }

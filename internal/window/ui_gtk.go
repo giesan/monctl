@@ -97,7 +97,7 @@ func Run(monitors monitors, laptop laptop) error {
 	outer.PackStart(status, false, false, 0)
 	win.Add(outer)
 
-	loading, err := gtk.LabelNew("Lade Monitore …")
+	loading, err := gtk.LabelNew("Loading monitors…")
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func Run(monitors monitors, laptop laptop) error {
 			}
 			loading.Destroy()
 			if err := populateWindow(content, state); err != nil {
-				status.SetText(fmt.Sprintf("Fenster: %v", err))
+				status.SetText(fmt.Sprintf("Window: %v", err))
 				status.Show()
 				return
 			}
@@ -224,7 +224,7 @@ func sliderRow(state *Model, index int) (*gtk.Box, error) {
 	row.PackStart(icon, false, false, 0)
 	caption := control.label
 	if control.laptop {
-		caption = "Helligkeit"
+		caption = "Brightness"
 	}
 	name, err := gtk.LabelNewWithMnemonic("_" + caption)
 	if err != nil {

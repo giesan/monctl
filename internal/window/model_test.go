@@ -23,6 +23,7 @@ type controlWrite struct {
 
 type fakeMonitors struct {
 	displays        []monitor.Display
+	detectError     error
 	values          map[controlKey]int
 	maxima          map[controlKey]int
 	errors          map[controlKey]error
@@ -34,7 +35,7 @@ type fakeMonitors struct {
 }
 
 func (f *fakeMonitors) Detect(context.Context) ([]monitor.Display, error) {
-	return f.displays, nil
+	return f.displays, f.detectError
 }
 func (f *fakeMonitors) ReadFeature(_ context.Context, bus int, feature monitor.Feature) (monitor.FeatureValue, error) {
 	key := controlKey{bus, feature}
@@ -54,9 +55,10 @@ func (f *fakeMonitors) SetFeatureWithMaximum(_ context.Context, bus int, feature
 }
 
 type fakeLaptop struct {
-	mu     sync.Mutex
-	value  int
-	writes chan int
+	mu       sync.Mutex
+	value    int
+	writes   chan int
+	setError error
 }
 
 func (f *fakeLaptop) Get(context.Context) (int, error) {
@@ -71,7 +73,7 @@ func (f *fakeLaptop) Set(_ context.Context, value int) error {
 	if f.writes != nil {
 		f.writes <- value
 	}
-	return nil
+	return f.setError
 }
 
 func TestWindowShowsSupportedFeaturesPerMonitor(t *testing.T) {
@@ -96,10 +98,10 @@ func TestWindowShowsSupportedFeaturesPerMonitor(t *testing.T) {
 		bus, value   int
 		feature      monitor.Feature
 	}{
-		{"Helligkeit", "PHL", 7, 30, monitor.Brightness},
-		{"Kontrast", "PHL", 7, 45, monitor.Contrast},
-		{"Monitorlautstärke", "AOC", 8, 65, monitor.Volume},
-		{"Laptop", "", 0, 70, 0},
+		{"Brightness", "PHL", 7, 30, monitor.Brightness},
+		{"Contrast", "PHL", 7, 45, monitor.Contrast},
+		{"Monitor volume", "AOC", 8, 65, monitor.Volume},
+		{"Laptop display", "", 0, 70, 0},
 	} {
 		s := m.sliders[i]
 		if s.label != want.label || s.model != want.model || s.bus != want.bus || s.value != want.value || s.feature != want.feature {
@@ -169,8 +171,15 @@ func TestWindowWithoutSupportedControls(t *testing.T) {
 		},
 	}
 	m := New(context.Background(), monitors, unavailableLaptop{}, nil)
-	if len(m.sliders) != 0 || m.Message() != "Keine Regler gefunden" {
+	if len(m.sliders) != 0 || m.Message() != "No controls available" {
 		t.Fatalf("sliders=%+v message=%q", m.sliders, m.Message())
+	}
+}
+
+func TestWindowDetectionErrorIsEnglish(t *testing.T) {
+	m := New(context.Background(), &fakeMonitors{detectError: errors.New("read failed")}, unavailableLaptop{}, nil)
+	if got := m.Message(); got != "External monitors: read failed" {
+		t.Fatalf("detection message = %q", got)
 	}
 }
 
@@ -288,10 +297,27 @@ func TestWriteErrorNamesMonitorAndControl(t *testing.T) {
 	m.start(ctx)
 	m.Request(0, 40)
 	deadline := time.After(2 * time.Second)
-	for !strings.Contains(m.Message(), "PHL (Bus 7), Helligkeit: write failed") {
+	for !strings.Contains(m.Message(), "PHL (Bus 7), Brightness: write failed") {
 		select {
 		case <-deadline:
 			t.Fatalf("write error = %q", m.Message())
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
+func TestLaptopWriteErrorUsesEnglishName(t *testing.T) {
+	laptop := &fakeLaptop{value: 70, setError: errors.New("write failed")}
+	m := New(context.Background(), &fakeMonitors{}, laptop, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.start(ctx)
+	m.Request(0, 80)
+	deadline := time.After(2 * time.Second)
+	for m.Message() != "Laptop display: write failed" {
+		select {
+		case <-deadline:
+			t.Fatalf("laptop write message = %q", m.Message())
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
