@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/giesan/monitorcontrol/internal/monitor"
+	"github.com/giesan/monctl/internal/monitor"
 )
 
 func TestGroupSliders(t *testing.T) {

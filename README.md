@@ -10,7 +10,7 @@ volume.
 ## Install and set up
 
 Download the prebuilt package for your system from
-[GitHub Releases](https://github.com/giesan/monitorcontrol/releases), then run:
+[GitHub Releases](https://github.com/giesan/monctl/releases), then run:
 
 ```sh
 # Debian / Ubuntu: from the directory containing the downloaded .deb

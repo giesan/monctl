@@ -10,4 +10,4 @@ Update `go.mod`, internal Go imports, GoReleaser's GitHub owner/name and linker 
 
 ## Verification
 
-Search all tracked text files for the old `github.com/giesan/monitorcontrol` module/repository path and any technical `monitorcontrol` identifiers, while distinguishing product-name and ordinary prose. Run headless and GTK Go tests and vet, build both variants, validate GoReleaser and workflow syntax, and check `git diff --check`. Verify GoReleaser snapshot version injection still uses the renamed linker path without publishing if safe. The GitHub repository must exist at the new path before remote publishing can succeed.
+Search all tracked text files for the former module/repository path and technical identifiers, while distinguishing product-name and ordinary prose. Run headless and GTK Go tests and vet, build both variants, validate GoReleaser and workflow syntax, and check `git diff --check`. Verify GoReleaser snapshot version injection still uses the renamed linker path without publishing if safe. The GitHub repository must exist at the new path before remote publishing can succeed.

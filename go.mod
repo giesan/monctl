@@ -1,4 +1,4 @@
-module github.com/giesan/monitorcontrol
+module github.com/giesan/monctl
 
 go 1.27
 

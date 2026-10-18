@@ -5,7 +5,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/giesan/monitorcontrol/internal/monitor"
+	"github.com/giesan/monctl/internal/monitor"
 )
 
 func runWindow(monitor.Service, laptopControl) error {

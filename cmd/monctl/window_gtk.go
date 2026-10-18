@@ -3,8 +3,8 @@
 package main
 
 import (
-	"github.com/giesan/monitorcontrol/internal/monitor"
-	"github.com/giesan/monitorcontrol/internal/window"
+	"github.com/giesan/monctl/internal/monitor"
+	"github.com/giesan/monctl/internal/window"
 )
 
 func runWindow(service monitor.Service, laptop laptopControl) error {

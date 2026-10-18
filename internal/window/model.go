@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/giesan/monitorcontrol/internal/monitor"
+	"github.com/giesan/monctl/internal/monitor"
 )
 
 type monitors interface {

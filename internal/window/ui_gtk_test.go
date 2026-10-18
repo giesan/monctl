@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/giesan/monitorcontrol/internal/monitor"
+	"github.com/giesan/monctl/internal/monitor"
 	"github.com/gotk3/gotk3/gtk"
 )
 

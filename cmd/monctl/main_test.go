@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/giesan/monitorcontrol/internal/monitor"
-	"github.com/giesan/monitorcontrol/internal/version"
+	"github.com/giesan/monctl/internal/monitor"
+	"github.com/giesan/monctl/internal/version"
 )
 
 type backend struct {

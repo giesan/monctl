@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/giesan/monitorcontrol/internal/monitor"
+	"github.com/giesan/monctl/internal/monitor"
 )
 
 const commandTimeout = 20 * time.Second

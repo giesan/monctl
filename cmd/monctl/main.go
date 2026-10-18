@@ -7,11 +7,11 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/giesan/monitorcontrol/internal/backlight"
-	"github.com/giesan/monitorcontrol/internal/ddc"
-	"github.com/giesan/monitorcontrol/internal/monitor"
-	"github.com/giesan/monitorcontrol/internal/setup"
-	"github.com/giesan/monitorcontrol/internal/version"
+	"github.com/giesan/monctl/internal/backlight"
+	"github.com/giesan/monctl/internal/ddc"
+	"github.com/giesan/monctl/internal/monitor"
+	"github.com/giesan/monctl/internal/setup"
+	"github.com/giesan/monctl/internal/version"
 )
 
 const usage = "Usage: monctl --version | setup | list | get [bus] | set [bus] <percent> | contrast|volume get [bus] | contrast|volume set [bus] <percent> | laptop get | laptop set <percent>"
