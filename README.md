@@ -17,7 +17,7 @@ Download the prebuilt package for your system from
 sudo apt install ./monctl_*_linux_amd64.deb
 
 # Arch / Manjaro: from the directory containing the downloaded package
-sudo pacman -U ./monctl_*_linux_amd64.pkg.tar.zst
+sudo pacman -U ./monctl-giesan_*_linux_amd64.pkg.tar.zst
 ```
 
 The packages install the graphical window, CLI, application-menu launcher and
@@ -38,6 +38,18 @@ If monitor detection fails because access to `/dev/i2c-*` is denied, follow the
 [ddcutil setup guide](https://www.ddcutil.com/config_steps/) to configure
 persistent access. If no `/dev/i2c-*` devices exist, try `sudo modprobe i2c-dev`
 and run `monctl setup` again. Controls not supported by your monitor are hidden.
+
+## Uninstall
+
+Remove the package for your distribution:
+
+```sh
+# Arch / Manjaro
+sudo pacman -R monctl-giesan
+
+# Debian / Ubuntu
+sudo apt remove monctl
+```
 
 ## Desktop window
 
