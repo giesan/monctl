@@ -9,14 +9,13 @@ builds:
     main: ./cmd/monctl
     binary: monctl
     flags:
-      - -tags=nucular_shiny
+      - -tags=gtk
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
     goos:
       - linux
     goarch:
       - amd64
-      - arm64
 
 nfpms:
   - id: archlinux
@@ -31,3 +30,15 @@ nfpms:
     dependencies:
       - ddcutil
       - systemd
+      - gtk3
+    contents:
+      - src: assets/monctl.desktop
+        dst: /usr/share/applications/monctl.desktop
+      - src: internal/window/icons/monctl-16.png
+        dst: /usr/share/icons/hicolor/16x16/apps/monctl.png
+      - src: internal/window/icons/monctl-24.png
+        dst: /usr/share/icons/hicolor/24x24/apps/monctl.png
+      - src: internal/window/icons/monctl-48.png
+        dst: /usr/share/icons/hicolor/48x48/apps/monctl.png
+      - src: internal/window/icons/monctl-128.png
+        dst: /usr/share/icons/hicolor/128x128/apps/monctl.png

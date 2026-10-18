@@ -7,10 +7,10 @@ tasks:
       - task: build
 
   build:
-    desc: Build monctl with the desktop window into build/monctl
+    desc: Build monctl with the GTK desktop window into build/monctl
     cmds:
       - mkdir -p build
-      - CGO_ENABLED=0 go build -tags=nucular_shiny -o build/monctl ./cmd/monctl
+      - CGO_ENABLED=1 go build -tags=gtk -o build/monctl ./cmd/monctl
 
   run:
     desc: Rebuild and start the local desktop window
@@ -19,10 +19,10 @@ tasks:
       - ./build/monctl
 
   test:
-    desc: Test CLI and GUI configurations
+    desc: Test headless CLI and GTK GUI configurations
     cmds:
-      - go test ./...
-      - CGO_ENABLED=0 go test -tags=nucular_shiny ./...
+      - CGO_ENABLED=0 go test ./...
+      - CGO_ENABLED=1 go test -tags=gtk ./...
 
   package:
     desc: Build Arch/Manjaro snapshot packages (replaces dist/)

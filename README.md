@@ -8,6 +8,7 @@ The hardware controls work independently of Cinnamon, GNOME, KDE, X11, and Wayla
 
 - Go 1.27 or newer to build
 - [Task](https://taskfile.dev/) (go-task) for the optional `task` build shortcuts
+- GTK 3 development files and `pkg-config` to build the graphical window (on Manjaro: `sudo pacman -S gtk3 pkgconf`); the window also needs GTK 3 at runtime
 - `ddcutil` installed (on Manjaro: `sudo pacman -S ddcutil`)
 - A DDC/CI-capable external monitor with DDC/CI enabled in its on-screen menu
 - Permission to access its `/dev/i2c-*` device; consult the [ddcutil setup guide](https://www.ddcutil.com/config_steps/) if detection fails
@@ -25,7 +26,7 @@ for DDC/CI monitors. It does not change device permissions; if access is
 denied, follow the ddcutil guide linked above. Repeating setup is safe.
 
 ```sh
-CGO_ENABLED=0 go run -tags=nucular_shiny ./cmd/monctl
+CGO_ENABLED=1 go run -tags=gtk ./cmd/monctl
 go run ./cmd/monctl setup
 go run ./cmd/monctl list
 go run ./cmd/monctl get
@@ -46,8 +47,9 @@ The result is `build/monctl`; run `./build/monctl` to open the window, or use
 Use `task run` on an X11/XWayland desktop to rebuild and open the window in
 one step. The task exits when the window closes.
 Without Task, use `mkdir -p build` and
-`CGO_ENABLED=0 go build -tags=nucular_shiny -o build/monctl ./cmd/monctl`.
+`CGO_ENABLED=1 go build -tags=gtk -o build/monctl ./cmd/monctl`.
 Run `task test` to test both CLI and GUI configurations.
+The CLI alone can still be built without GTK using `CGO_ENABLED=0 go build ./cmd/monctl`.
 With exactly one brightness-capable external monitor, the bus number is optional.
 With multiple monitors, specify a bus number returned by `list`. Bus numbers can change after
 reconnecting displays or rebooting. `set` accepts whole percentages from 0 to
@@ -69,8 +71,10 @@ Run `monctl` without arguments for a desktop window with brightness, contrast,
 and monitor-speaker volume sliders for external monitors, plus a brightness
 slider for the laptop panel. Unsupported monitor controls are hidden. Monitor
 volume does not affect the Linux system volume. Close the window to exit. The
-window uses X11 (or XWayland in a Wayland session) and is built without CGO.
-Without the `nucular_shiny` build tag, only CLI commands are available; the
+window uses native GTK 3 widgets with the desktop's GTK theme on X11 or Wayland.
+The window carries its own application icon, including when launched locally
+with `task run`; the desktop theme determines whether it also appears in the title bar.
+Without the `gtk` build tag, only CLI commands are available; the
 no-argument invocation reports how to build the window. Slider changes start
 immediately; while a device command is running, only the latest pending value
 is kept to avoid overwhelming DDC/CI monitors.
@@ -80,8 +84,10 @@ is kept to avoid overwhelming DDC/CI monitors.
 With GoReleaser v2 installed, run `task package` (or
 `goreleaser release --snapshot --clean`). This replaces existing contents of
 `dist/`.
-The resulting Arch Linux packages for x86-64 and ARM64 are placed in `dist/`.
-The package installs only `monctl` to `/usr/bin` and depends on `ddcutil` and
-`systemd` (`busctl`). After installing the package, run `monctl setup` as your
+The resulting Arch Linux package for x86-64 is placed in `dist/`.
+The package installs `monctl` to `/usr/bin`, an application-menu launcher and
+icons for the Cinnamon panel. It depends on `ddcutil` and
+`systemd` (`busctl`) plus GTK 3. Building it requires GTK 3 development files
+and `pkg-config` on an x86-64 Linux machine. After installing the package, run `monctl setup` as your
 normal user to configure the I2C module and check monitor access. Snapshot
 packages are for local testing; no publishing or Git tag is required.

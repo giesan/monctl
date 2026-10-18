@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Monitor Control
+Comment=Control monitor brightness, contrast and volume
+Exec=monctl
+Icon=monctl
+Terminal=false
+Categories=Settings;HardwareSettings;
+StartupNotify=true
+StartupWMClass=monctl

@@ -1,4 +1,4 @@
-//go:build nucular_shiny
+//go:build gtk
 
 package main
 
