@@ -23,8 +23,8 @@ builds:
 
 nfpms:
   - id: archlinux
-    package_name: monctl
-    builds:
+    package_name: monctl-giesan
+    ids:
       - monctl
     formats:
       - archlinux
@@ -48,7 +48,7 @@ nfpms:
         dst: /usr/share/icons/hicolor/128x128/apps/monctl.png
   - id: debian
     package_name: monctl
-    builds:
+    ids:
       - monctl
     formats:
       - deb
