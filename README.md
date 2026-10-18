@@ -71,3 +71,7 @@ systemd-logind rather than DDC/CI. If multiple laptop backlight devices are
 found, the command reports the ambiguity instead of selecting one.
 
 To build from source, run tests, or create packages, see [DEVELOPMENT.md](DEVELOPMENT.md).
+
+## Project note
+
+This project was implemented entirely with AI.

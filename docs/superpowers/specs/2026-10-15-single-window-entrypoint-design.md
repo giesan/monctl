@@ -1,17 +1,17 @@
-# Ein Fenster statt Tray — Entwurf
+# One window instead of a tray — design
 
-## Ziel und Verhalten
+## Goal and behavior
 
-`monctl` ist das einzige ausgelieferte Programm. Ohne Argumente öffnet es das vorhandene Helligkeitsfenster mit Reglern für erkannte externe Monitore und, falls vorhanden, das Laptop-Display. Das Schließen des Fensters beendet das Programm. Die bisherigen CLI-Befehle (`setup`, `list`, `get`, `set`, `contrast`, `volume`, `laptop`) bleiben mit ihren Argumenten und Rückgabewerten erhalten und funktionieren ohne grafische Sitzung. Unbekannte Argumente zeigen weiterhin die Hilfe mit Exit-Code 2.
+`monctl` is the only distributed program. With no arguments, it opens the existing brightness window with sliders for detected external monitors and, if present, the laptop display. Closing the window exits the program. The existing CLI commands (`setup`, `list`, `get`, `set`, `contrast`, `volume`, `laptop`) retain their arguments and return values and work without a graphical session. Unknown arguments continue to show usage information and exit with code 2.
 
-Das Fenster nutzt weiterhin Nuculars CGO-freies Shiny-Backend und benötigt X11 oder XWayland. Fehlt `DISPLAY`, meldet `monctl` den Fehler und beendet sich mit Exit-Code 1. Wayland ohne XWayland ist nicht Teil dieses Schritts.
+The window continues to use Nucular's CGO-free Shiny backend and requires X11 or XWayland. If `DISPLAY` is missing, `monctl` reports the error and exits with code 1. Wayland without XWayland is outside the scope of this step.
 
-## Aufbau
+## Structure
 
-Der CLI-Einstieg unterscheidet lediglich zwischen Aufruf ohne Argumente und einem CLI-Befehl. Der Fensterpfad ruft `internal/window.Run` mit den vorhandenen Monitor- und Laptop-Diensten auf; das Fenster-Modell und seine verzögerten Schreibzugriffe bleiben bestehen. Die GUI-spezifische Anbindung im CLI ist an den Build-Tag `nucular_shiny` gebunden. Ohne diesen Tag bleibt die CLI baubar; ein Aufruf ohne Argumente gibt eine verständliche Build-Anweisung aus. Das ausgelieferte `monctl` wird mit dem Tag und `CGO_ENABLED=0` gebaut. Ein Fensterfehler wird auf stderr ausgegeben und führt zu Exit-Code 1.
+The CLI entry point distinguishes only between invocation without arguments and a CLI command. The window path calls `internal/window.Run` with the existing monitor and laptop services; the window model and its deferred writes remain in place. The GUI integration in the CLI is tied to the `nucular_shiny` build tag. Without that tag, the CLI remains buildable; invocation without arguments prints a clear build instruction. The distributed `monctl` is built with that tag and `CGO_ENABLED=0`. A window error is written to stderr and results in exit code 1.
 
-Tray-Einstieg, Tray-Paket und der separate `monctl-window`-Einstieg werden entfernt. Die Tray-spezifische Implementierung und ihre Tests entfallen; `internal/window` bleibt als eigener Baustein bestehen. Go-Abhängigkeiten, die danach nicht mehr benötigt werden, werden bereinigt. Die Paketkonfiguration liefert nur `monctl` aus. Das README beschreibt den Start des Fensters, den Quellcode-Aufruf mit Build-Tag und die weiterhin verfügbaren CLI-Befehle.
+The tray entry point, tray package, and separate `monctl-window` entry point are removed. The tray-specific implementation and its tests are removed; `internal/window` remains a separate component. Go dependencies no longer needed afterward are cleaned up. The package configuration distributes only `monctl`. The README describes launching the window, running from source with the build tag, and the still-available CLI commands.
 
-## Prüfung
+## Verification
 
-Tests prüfen die Verzweigung ohne Argumente einschließlich Fensterfehler und die unveränderte CLI-Argumentbehandlung, ohne ein Display oder echte Monitorhardware vorauszusetzen. `go test ./...` und `go test -tags=nucular_shiny ./...` prüfen beide Build-Varianten; ein Paket-Build prüft die Auslieferung mit nur einem Binary. Eine grafische Sichtprüfung auf X11/XWayland bestätigt Öffnen, Regler und Beenden beim Schließen.
+Tests cover the no-argument branch, including window errors, and unchanged CLI argument handling without requiring a display or real monitor hardware. `go test ./...` and `go test -tags=nucular_shiny ./...` check both build variants; a package build checks that only one binary is distributed. A visual check on X11/XWayland confirms that the window opens, sliders appear, and closing the window exits the program.
