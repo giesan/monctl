@@ -74,6 +74,29 @@ func TestMissingI2CDevices(t *testing.T) {
 	}
 }
 
+func TestDetectWithoutDisplays(t *testing.T) {
+	for _, reply := range []response{
+		{out: ""},
+		{out: "No displays found"},
+		{out: "No displays found", err: errors.New("exit status 1")},
+	} {
+		f := &fakeRunner{responses: []response{reply}}
+		displays, err := (&Backend{run: f}).Detect(context.Background())
+		if err != nil || len(displays) != 0 {
+			t.Fatalf("response=%+v: displays=%v, err=%v", reply, displays, err)
+		}
+	}
+}
+
+func TestDetectDoesNotHideOtherErrors(t *testing.T) {
+	for _, output := range []string{"Permission denied: /dev/i2c-7", "No /dev/i2c devices exist. No displays found", "Input/output error\nNo displays found"} {
+		f := &fakeRunner{responses: []response{{out: output, err: errors.New("exit status 1")}}}
+		if _, err := (&Backend{run: f}).Detect(context.Background()); err == nil {
+			t.Fatalf("output %q should be an error", output)
+		}
+	}
+}
+
 func TestMalformedReadIsError(t *testing.T) {
 	f := &fakeRunner{responses: []response{{out: "something unexpected"}}}
 	_, err := (&Backend{run: f}).Read(context.Background(), 7, monitor.Brightness)

@@ -176,6 +176,21 @@ func TestWindowWithoutSupportedControls(t *testing.T) {
 	}
 }
 
+func TestWindowWithoutExternalMonitor(t *testing.T) {
+	for _, test := range []struct {
+		laptop laptop
+		want   int
+	}{{&fakeLaptop{value: 70}, 1}, {unavailableLaptop{}, 0}} {
+		m := New(context.Background(), &fakeMonitors{}, test.laptop, nil)
+		if got := m.Message(); got != "No external monitor connected" {
+			t.Fatalf("laptop=%T: message=%q", test.laptop, got)
+		}
+		if got := len(m.sliders); got != test.want {
+			t.Fatalf("laptop=%T: sliders=%v", test.laptop, m.sliders)
+		}
+	}
+}
+
 func TestWindowDetectionErrorIsEnglish(t *testing.T) {
 	m := New(context.Background(), &fakeMonitors{detectError: errors.New("read failed")}, unavailableLaptop{}, nil)
 	if got := m.Message(); got != "External monitors: read failed" {
@@ -320,6 +335,55 @@ func TestLaptopWriteErrorUsesEnglishName(t *testing.T) {
 			t.Fatalf("laptop write message = %q", m.Message())
 		case <-time.After(10 * time.Millisecond):
 		}
+	}
+}
+
+func TestLaptopWriteRestoresNoMonitorMessage(t *testing.T) {
+	laptop := &fakeLaptop{value: 70, setError: errors.New("write failed")}
+	m := New(context.Background(), &fakeMonitors{}, laptop, nil)
+	changed := make(chan struct{}, 2)
+	m.changed = func() { changed <- struct{}{} }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.start(ctx)
+	m.Request(0, 80)
+	select {
+	case <-changed:
+		if got := m.Message(); got != "Laptop display: write failed" {
+			t.Fatalf("write error message = %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("laptop write error was not reported")
+	}
+	laptop.mu.Lock()
+	laptop.setError = nil
+	laptop.mu.Unlock()
+	m.Request(0, 90)
+	select {
+	case <-changed:
+		if got := m.Message(); got != "No external monitor connected" {
+			t.Fatalf("message after successful write = %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no-monitor message was not restored")
+	}
+}
+
+func TestSuccessfulLaptopWriteKeepsNoMonitorMessage(t *testing.T) {
+	m := New(context.Background(), &fakeMonitors{}, &fakeLaptop{value: 70}, nil)
+	changed := make(chan struct{}, 1)
+	m.changed = func() { changed <- struct{}{} }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.start(ctx)
+	m.Request(0, 80)
+	select {
+	case <-changed:
+		if got := m.Message(); got != "No external monitor connected" {
+			t.Fatalf("message after successful write = %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("laptop write did not complete")
 	}
 }
 

@@ -35,9 +35,11 @@ type Model struct {
 	monitors monitors
 	laptop   laptop
 	sliders  []*slider
-	mu       sync.Mutex
-	message  string
-	changed  func()
+	// Shown again after transient write errors have cleared.
+	noMonitorMessage string
+	mu               sync.Mutex
+	message          string
+	changed          func()
 }
 
 func New(ctx context.Context, monitors monitors, laptop laptop, changed func()) *Model {
@@ -45,6 +47,9 @@ func New(ctx context.Context, monitors monitors, laptop laptop, changed func()) 
 	displays, err := monitors.Detect(ctx)
 	if err != nil {
 		m.setMessage(fmt.Sprintf("External monitors: %v", err))
+	} else if len(displays) == 0 {
+		m.noMonitorMessage = "No external monitor connected"
+		m.setMessage(m.noMonitorMessage)
 	}
 	for _, display := range displays {
 		for _, feature := range []monitor.Feature{monitor.Brightness, monitor.Contrast, monitor.Volume} {
@@ -138,7 +143,7 @@ func (m *Model) process(ctx context.Context, slider *slider) {
 				m.setMessage(fmt.Sprintf("%s (Bus %d), %s: %v", slider.model, slider.bus, slider.label, err))
 			}
 		} else if m.Message() != "" {
-			m.setMessage("")
+			m.setMessage(m.noMonitorMessage)
 		}
 	}
 }
