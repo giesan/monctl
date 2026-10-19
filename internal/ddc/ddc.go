@@ -57,7 +57,7 @@ func (b *Backend) command(ctx context.Context, args ...string) (string, error) {
 		return "", fmt.Errorf("no /dev/i2c-* devices found; load the i2c-dev kernel module (sudo modprobe i2c-dev) and check your graphics driver: %w", err)
 	case strings.Contains(low, "permission denied"), strings.Contains(low, "eacces"):
 		return "", fmt.Errorf("cannot access /dev/i2c-*; check I2C device permissions: %s: %w", message, err)
-	case args[0] == "detect" && strings.Contains(low, "no displays found"):
+	case args[0] == "detect" && low == "no displays found":
 		return "", nil
 	case strings.Contains(low, "unsupported"), strings.Contains(low, "not supported"), vcpError.MatchString(low):
 		return "", fmt.Errorf("%w: %s", monitor.ErrUnsupported, message)

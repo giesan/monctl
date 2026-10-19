@@ -89,7 +89,7 @@ func TestDetectWithoutDisplays(t *testing.T) {
 }
 
 func TestDetectDoesNotHideOtherErrors(t *testing.T) {
-	for _, output := range []string{"Permission denied: /dev/i2c-7", "No /dev/i2c devices exist. No displays found"} {
+	for _, output := range []string{"Permission denied: /dev/i2c-7", "No /dev/i2c devices exist. No displays found", "Input/output error\nNo displays found"} {
 		f := &fakeRunner{responses: []response{{out: output, err: errors.New("exit status 1")}}}
 		if _, err := (&Backend{run: f}).Detect(context.Background()); err == nil {
 			t.Fatalf("output %q should be an error", output)

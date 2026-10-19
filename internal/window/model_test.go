@@ -338,6 +338,55 @@ func TestLaptopWriteErrorUsesEnglishName(t *testing.T) {
 	}
 }
 
+func TestLaptopWriteRestoresNoMonitorMessage(t *testing.T) {
+	laptop := &fakeLaptop{value: 70, setError: errors.New("write failed")}
+	m := New(context.Background(), &fakeMonitors{}, laptop, nil)
+	changed := make(chan struct{}, 2)
+	m.changed = func() { changed <- struct{}{} }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.start(ctx)
+	m.Request(0, 80)
+	select {
+	case <-changed:
+		if got := m.Message(); got != "Laptop display: write failed" {
+			t.Fatalf("write error message = %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("laptop write error was not reported")
+	}
+	laptop.mu.Lock()
+	laptop.setError = nil
+	laptop.mu.Unlock()
+	m.Request(0, 90)
+	select {
+	case <-changed:
+		if got := m.Message(); got != "No external monitor connected" {
+			t.Fatalf("message after successful write = %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no-monitor message was not restored")
+	}
+}
+
+func TestSuccessfulLaptopWriteKeepsNoMonitorMessage(t *testing.T) {
+	m := New(context.Background(), &fakeMonitors{}, &fakeLaptop{value: 70}, nil)
+	changed := make(chan struct{}, 1)
+	m.changed = func() { changed <- struct{}{} }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.start(ctx)
+	m.Request(0, 80)
+	select {
+	case <-changed:
+		if got := m.Message(); got != "No external monitor connected" {
+			t.Fatalf("message after successful write = %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("laptop write did not complete")
+	}
+}
+
 func TestWriteTargetsSelectedMonitor(t *testing.T) {
 	monitors := &fakeMonitors{
 		displays: []monitor.Display{{Bus: 7, Model: "PHL"}, {Bus: 8, Model: "AOC"}},
