@@ -57,6 +57,8 @@ func (b *Backend) command(ctx context.Context, args ...string) (string, error) {
 		return "", fmt.Errorf("no /dev/i2c-* devices found; load the i2c-dev kernel module (sudo modprobe i2c-dev) and check your graphics driver: %w", err)
 	case strings.Contains(low, "permission denied"), strings.Contains(low, "eacces"):
 		return "", fmt.Errorf("cannot access /dev/i2c-*; check I2C device permissions: %s: %w", message, err)
+	case args[0] == "detect" && strings.Contains(low, "no displays found"):
+		return "", nil
 	case strings.Contains(low, "unsupported"), strings.Contains(low, "not supported"), vcpError.MatchString(low):
 		return "", fmt.Errorf("%w: %s", monitor.ErrUnsupported, message)
 	case strings.Contains(low, "no displays found"), strings.Contains(low, "no monitor"), strings.Contains(low, "not found"):
@@ -77,6 +79,9 @@ func (b *Backend) Detect(ctx context.Context) ([]monitor.Display, error) {
 		return nil, err
 	}
 	indices := displayHeader.FindAllStringIndex(out, -1)
+	if len(indices) == 0 && strings.EqualFold(strings.TrimSpace(out), "no displays found") {
+		return nil, nil
+	}
 	if len(indices) == 0 && strings.TrimSpace(out) != "" {
 		return nil, fmt.Errorf("unexpected ddcutil detect output: %q", strings.TrimSpace(out))
 	}

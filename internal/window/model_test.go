@@ -176,6 +176,21 @@ func TestWindowWithoutSupportedControls(t *testing.T) {
 	}
 }
 
+func TestWindowWithoutExternalMonitor(t *testing.T) {
+	for _, test := range []struct {
+		laptop laptop
+		want   int
+	}{{&fakeLaptop{value: 70}, 1}, {unavailableLaptop{}, 0}} {
+		m := New(context.Background(), &fakeMonitors{}, test.laptop, nil)
+		if got := m.Message(); got != "No external monitor connected" {
+			t.Fatalf("laptop=%T: message=%q", test.laptop, got)
+		}
+		if got := len(m.sliders); got != test.want {
+			t.Fatalf("laptop=%T: sliders=%v", test.laptop, m.sliders)
+		}
+	}
+}
+
 func TestWindowDetectionErrorIsEnglish(t *testing.T) {
 	m := New(context.Background(), &fakeMonitors{detectError: errors.New("read failed")}, unavailableLaptop{}, nil)
 	if got := m.Message(); got != "External monitors: read failed" {

@@ -45,6 +45,8 @@ func New(ctx context.Context, monitors monitors, laptop laptop, changed func()) 
 	displays, err := monitors.Detect(ctx)
 	if err != nil {
 		m.setMessage(fmt.Sprintf("External monitors: %v", err))
+	} else if len(displays) == 0 {
+		m.setMessage("No external monitor connected")
 	}
 	for _, display := range displays {
 		for _, feature := range []monitor.Feature{monitor.Brightness, monitor.Contrast, monitor.Volume} {
