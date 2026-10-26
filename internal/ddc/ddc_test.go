@@ -97,6 +97,37 @@ func TestDetectDoesNotHideOtherErrors(t *testing.T) {
 	}
 }
 
+func TestDetectInvalidDisplays(t *testing.T) {
+	const invalid = "Invalid display\n   I2C bus: /dev/i2c-2\n   DRM connector: card1-eDP-1\n   drm_connector_id: 123\n   Monitor: LEN::\n\nInvalid display\n   I2C bus: /dev/i2c-6\n   drm_connector_id: 0\n   Monitor: CMN::\n"
+	const warning = "Failed to find connector name for /dev/i2c-6,\nset_connector_for_businfo_using_edid at line 1737 in file i2c_bus_core.c.\n"
+	const valid = "Display 1\n   I2C bus: /dev/i2c-7\n   Monitor: DEL:DELL U3011:456\n"
+	for _, tc := range []struct {
+		name    string
+		out     string
+		want    []monitor.Display
+		wantErr bool
+	}{
+		{name: "invalid only", out: invalid},
+		{name: "screenshot with warning", out: warning + invalid},
+		{name: "invalid before valid", out: invalid + valid, want: []monitor.Display{{Bus: 7, Model: "DELL U3011"}}},
+		{name: "invalid after valid", out: valid + invalid, want: []monitor.Display{{Bus: 7, Model: "DELL U3011"}}},
+		{name: "invalid between valid", out: valid + invalid + "Display 2\n   I2C bus: /dev/i2c-12\n   Monitor: ACR:Acer X243W:123\n", want: []monitor.Display{{Bus: 7, Model: "DELL U3011"}, {Bus: 12, Model: "Acer X243W"}}},
+		{name: "malformed valid before invalid", out: "Display 1\nInvalid display\n   I2C bus: /dev/i2c-2\n   Monitor: LEN:Laptop panel:123\n", wantErr: true},
+		{name: "unexpected output", out: warning, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeRunner{responses: []response{{out: tc.out}}}
+			displays, err := (&Backend{run: f}).Detect(context.Background())
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("detect error = %v, want error = %v", err, tc.wantErr)
+			}
+			if len(displays) != len(tc.want) || (len(tc.want) > 0 && !reflect.DeepEqual(displays, tc.want)) {
+				t.Fatalf("displays = %#v, want %#v", displays, tc.want)
+			}
+		})
+	}
+}
+
 func TestMalformedReadIsError(t *testing.T) {
 	f := &fakeRunner{responses: []response{{out: "something unexpected"}}}
 	_, err := (&Backend{run: f}).Read(context.Background(), 7, monitor.Brightness)
