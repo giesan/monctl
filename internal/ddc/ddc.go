@@ -70,7 +70,7 @@ func (b *Backend) command(ctx context.Context, args ...string) (string, error) {
 
 var busLine = regexp.MustCompile(`(?m)^\s*I2C bus:\s*/dev/i2c-([0-9]+)\s*$`)
 var monitorLine = regexp.MustCompile(`(?m)^\s*Monitor:\s*[^:\r\n]*:([^:\r\n]+):[^\r\n]*$`)
-var displayHeader = regexp.MustCompile(`(?m)^Display [0-9]+\s*$`)
+var displayHeader = regexp.MustCompile(`(?m)^(Display [0-9]+|Invalid display)[\t \r]*$`)
 var vcpError = regexp.MustCompile(`vcp [0-9a-f]{2} err`)
 
 func (b *Backend) Detect(ctx context.Context) ([]monitor.Display, error) {
@@ -87,6 +87,11 @@ func (b *Backend) Detect(ctx context.Context) ([]monitor.Display, error) {
 	}
 	displays := make([]monitor.Display, 0, len(indices))
 	for i, index := range indices {
+		// Non-DDC displays (including laptop panels) delimit entries too, but
+		// must not contribute controls or fields to a neighboring valid entry.
+		if strings.TrimSpace(out[index[0]:index[1]]) == "Invalid display" {
+			continue
+		}
 		end := len(out)
 		if i+1 < len(indices) {
 			end = indices[i+1][0]
